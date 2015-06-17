@@ -1,6 +1,7 @@
 __author__ = 'marf'
 
 from math import log10
+from iso_properties import *
 # Formulas for Double spike calculations#
 
 #*** Natural Fractionation & Instrumental Fractionation***#
@@ -112,8 +113,14 @@ class calc_dspike(object):
         self.g_ins = {}
         self.frac_ins = {}
 
-    def dspike_calc(self, cls_nat, cls_ins, iter_nat, iter_ins, frac_nat_sim, frac_ins_sim, frac_nat, frac_ins):
-        # update class values but keep initials
+    def dspike_calc(self, cls_nat, cls_ins, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        # cls_nat - sample object of class calc_dspike
+        # cls_ins - mixture object of class calc_dspike
+        # iter_nat - number of iterations used for calculation of natural fractionation
+        # iter_ins - number of iterations used for calculation of instrumental fractionation
+        # frac_nat - assumed initial natural fractionation
+        # frac_ins - assumed initial instrumental fractionation
+        # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used
         n = cls_nat.x
         m = cls_ins.x
         for i in range(iter_nat):
@@ -149,8 +156,7 @@ class calc_dspike(object):
                 M['y'] = yint_ins
                 M['z'] = zint_ins
 
-                frac_ins = cls_ins.frac(m, M, 'z')
-                print frac_ins, ((frac_ins_sim/frac_ins)-1)*10**6
+                frac_ins = cls_ins.frac(m, M, frac_ratio)
                 self.frac_ins[s] = frac_ins
 
             #STEP 3#
@@ -180,8 +186,7 @@ class calc_dspike(object):
             N['y'] = yint_nat
             N['z'] = zint_nat
 
-            frac_nat = cls_nat.frac(n, N, 'z')
-            print frac_nat, ((frac_nat_sim/frac_nat)-1)*10**6
+            frac_nat = cls_nat.frac(n, N, frac_ratio)
             self.frac_nat[i] = frac_nat
 
         return frac_nat
@@ -190,10 +195,11 @@ class calc_dspike(object):
 
 class calc_dspike_samples(object):
 
-    def __init__(self, ,Sn_meas_obj, data_obj, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
+    def __init__(self, Sn_meas_obj, data, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
         self.Sn_std = Sn_meas_obj
-        self.Sn_data = data_obj
+        self.Sn_data = data
         self.Sn_spike = spike_obj
+        self.mix = {}
         self.Sn_masses = Sn_meas_obj
         self.data_denom = data_isotope_denom
         self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
@@ -235,12 +241,15 @@ class calc_dspike_samples(object):
             sample_spike_mix_ratio_sim[ratio] = fract(sample_spike_mix_ratio, ratio,
                                                          self.Sn_masses.get_Isotope_mass(ratio),
                                                          self.Sn_masses.get_Isotope_mass(self.data_denom),fins)
+        self.mix = sample_spike_mix_ratio_sim
+        return self.mix
 #       
-    def spike_sim(self):
+    def spike_sim(self, fnat, fins, mix):
         nat_frac = []
-        for value in range(len(df_new)):
+
+        for value in range(len(self.data)):
             mix = {}
-            for isotope in df_new:
+            for isotope in self.data:
                  mix[isotope] = (sample_spike_mix_ratio_sim[isotope]/df_new[isotope][value])*df_new[isotope].mean()
 
             mix_ratios = Isotope_Ratios()
