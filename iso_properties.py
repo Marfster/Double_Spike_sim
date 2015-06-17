@@ -156,7 +156,7 @@ def load_ratio_dict(dict_r, isotope_denom):
     ratio_dict = Isotope_Ratios()
     ratio_dict.add_ratios_dict(isotope_denom, dict_r)
     abund = Isotope_Abundances()
-    abund = abund.add_abundances_dict(ratio_dict.get_all_abundances(isotope_denom))
+    abund.add_abundances_dict(ratio_dict.get_all_abundances(isotope_denom))
     return abund
 
 def load_abundance_dict(dict_a):

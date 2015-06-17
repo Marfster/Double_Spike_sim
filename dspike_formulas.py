@@ -199,7 +199,8 @@ class calc_dspike_samples(object):
         self.Sn_data = data
         self.Sn_spike = spike_obj
         self.mix = {}
-        self.Sn_masses = Sn_meas_obj
+        self.Sn_masses = Sn_mass_obj
+        self.spike_list = spike_list
         self.data_denom = data_isotope_denom
         self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
 
@@ -208,18 +209,6 @@ class calc_dspike_samples(object):
         def fract(x, pos, ma1, ma2, frac):
                 X = x[pos] * (ma1/ma2) ** frac
                 return X
-
-        def load_ratio_dict(dict_r, isotope_denom):
-            ratio_dict = Isotope_Ratios()
-            ratio_dict.add_ratios_dict(isotope_denom, dict_r)
-            abund = Isotope_Abundances()
-            abund = abund.add_abundances_dict(ratio_dict.get_all_abundances(isotope_denom))
-            return abund
-
-        def load_abundance_dict(dict_a):
-            abund = Isotope_Abundances()
-            abund.add_abundances_dict(dict_a)
-            return abund
 
         Sn_std_sim_dict = {}
         for ratio in self.Sn_std.get_all_ratios(self.data_denom):
@@ -243,39 +232,24 @@ class calc_dspike_samples(object):
         self.mix = sample_spike_mix_ratio_sim
         return self.mix
 #       
-    def spike_sim(self, fnat_sim, fins_sim, mix_ratio):
-        nat_frac = []
+    def spike_sim(self, fnat_sim, fins_sim, mix_ratio, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
         mix_ini = self.mix_sim(fnat_sim, fins_sim, mix_ratio)
 
-        for value in range(len(self.data)):
+        for value in range(len(self.Sn_data)):
             mix_sim = {}
-            for isotope in self.data:
-                 mix_sim[isotope] = (mix_ini[isotope]/self.data[isotope][value]) * self.data[isotope].mean()
+            for isotope in self.Sn_data:
+                 mix_sim[isotope] = (mix_ini[isotope]/self.Sn_data[isotope][value]) * self.Sn_data[isotope].mean()
 
-            mix_ratios = Isotope_Ratios()
-            mix_ratios.add_ratios_dict(self.data_denom, mix)
-            mix_abund = Isotope_Abundances()
-            mix_abund.add_abundances_dict(mix_ratios.get_all_abundances(self.data_denom))
+            mix_sim_abund = load_ratio_dict(mix_sim,self.data_denom)
 
                 # Spike Calculation#
 
-            std = dspike_formulas("std", Sn_meas_obj, spike_obj, Sn_mass_obj, spike1)
-            sample = dspike_formulas("mix1", mix_abund, spike_obj, Sn_mass_obj, spike1)
+            mix = dspike_formulas(mix_sim_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
             dspike_single = calc_dspike()
 
-            nat_frac.append(dspike_single.dspike_calc(std,sample,3,6,-1,-2.2,-0.1,-2))
+            dspike_single.dspike_calc(self.std, mix, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio)
 
-        print nat_frac
-        print np.mean(nat_frac)
-        print np.std(nat_frac)
-        print (np.std(nat_frac)/np.mean(nat_frac))*1000000
-        print ((np.mean(nat_frac)/fnat)-1)*1000000
-
-        for calc_dspike_object in calc_dspike:
-            print calc_dspike_object.N
-            print calc_dspike_object.frac_ins
-            print calc_dspike_object.frac_nat
-
+        return dspike_single
 #   def dspike_calc:
 
 
