@@ -192,7 +192,6 @@ class calc_dspike(object):
         return frac_nat
 
 
-
 class calc_dspike_samples(object):
 
     def __init__(self, Sn_meas_obj, data, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
@@ -204,7 +203,7 @@ class calc_dspike_samples(object):
         self.data_denom = data_isotope_denom
         self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
 
-    def mix_sim(self, fnat, fins, mix):
+    def mix_sim(self, fnat_sim, fins_sim, mix_ratio):
         # Mix Sample-Spike
         def fract(x, pos, ma1, ma2, frac):
                 X = x[pos] * (ma1/ma2) ** frac
@@ -226,12 +225,12 @@ class calc_dspike_samples(object):
         for ratio in self.Sn_std.get_all_ratios(self.data_denom):
             Sn_std_sim_dict[ratio] = fract(self.Sn_std.get_all_ratios(self.data_denom), ratio,
                                                      self.Sn_masses.get_Isotope_mass(ratio),
-                                                     self.Sn_masses.get_Isotope_mass(self.data_denom), fnat)
+                                                     self.Sn_masses.get_Isotope_mass(self.data_denom), fnat_sim)
         Sn_std_sim = load_ratio_dict(Sn_std_sim_dict,self.data_denom)
 
         sample_spike_mix_abund_dict = {}
         for isotope in self.Sn_spike.get_all_abundances():
-            sample_spike_mix_abund_dict[isotope] = mix * Sn_std_sim.get_all_abundances()[isotope] + (1 - mix) * self.Sn_spike.get_all_abundances()[isotope]
+            sample_spike_mix_abund_dict[isotope] = mix_ratio * Sn_std_sim.get_all_abundances()[isotope] + (1 - mix_ratio) * self.Sn_spike.get_all_abundances()[isotope]
 
         sample_spike_mix_abund = load_abundance_dict(sample_spike_mix_abund_dict)
         sample_spike_mix_ratio = sample_spike_mix_abund.get_all_ratios(self.data_denom)
@@ -240,17 +239,18 @@ class calc_dspike_samples(object):
         for ratio in sample_spike_mix_ratio:
             sample_spike_mix_ratio_sim[ratio] = fract(sample_spike_mix_ratio, ratio,
                                                          self.Sn_masses.get_Isotope_mass(ratio),
-                                                         self.Sn_masses.get_Isotope_mass(self.data_denom),fins)
+                                                         self.Sn_masses.get_Isotope_mass(self.data_denom),fins_sim)
         self.mix = sample_spike_mix_ratio_sim
         return self.mix
 #       
-    def spike_sim(self, fnat, fins, mix):
+    def spike_sim(self, fnat_sim, fins_sim, mix_ratio):
         nat_frac = []
+        mix_ini = self.mix_sim(fnat_sim, fins_sim, mix_ratio)
 
         for value in range(len(self.data)):
-            mix = {}
+            mix_sim = {}
             for isotope in self.data:
-                 mix[isotope] = (sample_spike_mix_ratio_sim[isotope]/df_new[isotope][value])*df_new[isotope].mean()
+                 mix_sim[isotope] = (mix_ini[isotope]/self.data[isotope][value]) * self.data[isotope].mean()
 
             mix_ratios = Isotope_Ratios()
             mix_ratios.add_ratios_dict(self.data_denom, mix)

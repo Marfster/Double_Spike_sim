@@ -151,3 +151,20 @@ class Isotopes_Mass_Range():
     # Order the dependencies - directed topology
     def get_order_of_corr(self, corr_isotopes):
         return list(toposort(self.get_graph_of_corr(corr_isotopes)))
+
+def load_ratio_dict(dict_r, isotope_denom):
+    ratio_dict = Isotope_Ratios()
+    ratio_dict.add_ratios_dict(isotope_denom, dict_r)
+    abund = Isotope_Abundances()
+    abund = abund.add_abundances_dict(ratio_dict.get_all_abundances(isotope_denom))
+    return abund
+
+def load_abundance_dict(dict_a):
+    abund = Isotope_Abundances()
+    abund.add_abundances_dict(dict_a)
+    return abund
+
+def load_mass_dict(dict_m):
+    mass_dict = Isotope_Masses()
+    mass_dict.add_masses_dict(dict_m)
+    return mass_dict
