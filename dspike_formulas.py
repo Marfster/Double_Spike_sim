@@ -7,11 +7,10 @@ from math import log10
     # x = n or m, X = N or M
 class dspike_formulas():
 
-    def __init__(self, sample_name, abundances_sample, abundances_spike, isotope_masses, list_spike_isotopes):
+    def __init__(self, abundances_sample, abundances_spike, isotope_masses, list_spike_isotopes):
 
         # list_spike_isotopes = ['116']['117', '120', '122']
 
-        self.name = sample_name
         self.sample_ratios = abundances_sample.get_all_ratios(list_spike_isotopes[0][0])
         self.spike_ratios = abundances_spike.get_all_ratios(list_spike_isotopes[0][0])
         self.columns_name = {'x' : str(list_spike_isotopes[1][0] + "/" + list_spike_isotopes[0][0]),
@@ -189,15 +188,86 @@ class calc_dspike(object):
 
 
 
-#class calc_dspike_samples(object):
+class calc_dspike_samples(object):
 
-#    def __init__(self):
+    def __init__(self, ,Sn_meas_obj, data_obj, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
+        self.Sn_std = Sn_meas_obj
+        self.Sn_data = data_obj
+        self.Sn_spike = spike_obj
+        self.Sn_masses = Sn_meas_obj
+        self.data_denom = data_isotope_denom
+        self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
 
+    def mix_sim(self, fnat, fins, mix):
+        # Mix Sample-Spike
+        def fract(x, pos, ma1, ma2, frac):
+                X = x[pos] * (ma1/ma2) ** frac
+                return X
 
-#    def dspike_sim:
+        def load_ratio_dict(dict_r, isotope_denom):
+            ratio_dict = Isotope_Ratios()
+            ratio_dict.add_ratios_dict(isotope_denom, dict_r)
+            abund = Isotope_Abundances()
+            abund = abund.add_abundances_dict(ratio_dict.get_all_abundances(isotope_denom))
+            return abund
 
+        def load_abundance_dict(dict_a):
+            abund = Isotope_Abundances()
+            abund.add_abundances_dict(dict_a)
+            return abund
 
-#    def dspike_calc:
+        Sn_std_sim_dict = {}
+        for ratio in self.Sn_std.get_all_ratios(self.data_denom):
+            Sn_std_sim_dict[ratio] = fract(self.Sn_std.get_all_ratios(self.data_denom), ratio,
+                                                     self.Sn_masses.get_Isotope_mass(ratio),
+                                                     self.Sn_masses.get_Isotope_mass(self.data_denom), fnat)
+        Sn_std_sim = load_ratio_dict(Sn_std_sim_dict,self.data_denom)
+
+        sample_spike_mix_abund_dict = {}
+        for isotope in self.Sn_spike.get_all_abundances():
+            sample_spike_mix_abund_dict[isotope] = mix * Sn_std_sim.get_all_abundances()[isotope] + (1 - mix) * self.Sn_spike.get_all_abundances()[isotope]
+
+        sample_spike_mix_abund = load_abundance_dict(sample_spike_mix_abund_dict)
+        sample_spike_mix_ratio = sample_spike_mix_abund.get_all_ratios(self.data_denom)
+
+        sample_spike_mix_ratio_sim = {}
+        for ratio in sample_spike_mix_ratio:
+            sample_spike_mix_ratio_sim[ratio] = fract(sample_spike_mix_ratio, ratio,
+                                                         self.Sn_masses.get_Isotope_mass(ratio),
+                                                         self.Sn_masses.get_Isotope_mass(self.data_denom),fins)
+#       
+    def spike_sim(self):
+        nat_frac = []
+        for value in range(len(df_new)):
+            mix = {}
+            for isotope in df_new:
+                 mix[isotope] = (sample_spike_mix_ratio_sim[isotope]/df_new[isotope][value])*df_new[isotope].mean()
+
+            mix_ratios = Isotope_Ratios()
+            mix_ratios.add_ratios_dict(self.data_denom, mix)
+            mix_abund = Isotope_Abundances()
+            mix_abund.add_abundances_dict(mix_ratios.get_all_abundances(self.data_denom))
+
+                # Spike Calculation#
+
+            std = dspike_formulas("std", Sn_meas_obj, spike_obj, Sn_mass_obj, spike1)
+            sample = dspike_formulas("mix1", mix_abund, spike_obj, Sn_mass_obj, spike1)
+            dspike_single = calc_dspike()
+
+            nat_frac.append(dspike_single.dspike_calc(std,sample,3,6,-1,-2.2,-0.1,-2))
+
+        print nat_frac
+        print np.mean(nat_frac)
+        print np.std(nat_frac)
+        print (np.std(nat_frac)/np.mean(nat_frac))*1000000
+        print ((np.mean(nat_frac)/fnat)-1)*1000000
+
+        for calc_dspike_object in calc_dspike:
+            print calc_dspike_object.N
+            print calc_dspike_object.frac_ins
+            print calc_dspike_object.frac_nat
+
+#   def dspike_calc:
 
 
 #    def log_file:
