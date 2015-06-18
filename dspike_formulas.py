@@ -2,6 +2,8 @@ __author__ = 'marf'
 
 from math import log10
 from iso_properties import *
+import collections
+import flatdict
 # Formulas for Double spike calculations#
 
 #*** Natural Fractionation & Instrumental Fractionation***#
@@ -112,6 +114,7 @@ class calc_dspike(object):
         self.f_ins = {}
         self.g_ins = {}
         self.frac_ins = {}
+        self.log_dict = collections.OrderedDict()
 
     def dspike_calc(self, cls_nat, cls_ins, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
         # cls_nat - sample object of class calc_dspike
@@ -121,6 +124,10 @@ class calc_dspike(object):
         # frac_nat - assumed initial natural fractionation
         # frac_ins - assumed initial instrumental fractionation
         # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used
+        dict_log_inner = collections.OrderedDict()
+        dict_log_outer_1 = collections.OrderedDict()
+        dict_log_outer_2 = collections.OrderedDict()
+
         n = cls_nat.x
         m = cls_ins.x
         for i in range(iter_nat):
@@ -132,6 +139,11 @@ class calc_dspike(object):
             a_nat = cls_nat.a(n, N)
             b_nat = cls_nat.b(n, N)
             c_nat = cls_nat.c(n, a_nat, b_nat)
+
+            dict_log_outer_1.update(sorted(flatdict.FlatDict({'n'+str(i):n}).items())
+                                    + sorted(flatdict.FlatDict({'N'+str(i):N}).items())
+                                    + {'a_nat'+str(i):a_nat}.items() + {'b_nat'+str(i):b_nat}.items()
+                                    + {'c_nat'+str(i):c_nat}.items())
 
             #STEP 2#
             for s in range(iter_ins):
@@ -149,15 +161,23 @@ class calc_dspike(object):
                 zint_ins = cls_ins.zint(a_nat, b_nat, c_nat, xint_ins, yint_ins)
 
                 # Log variables
-                list_log_inner = [self.m.update({s:m}), self.M.update({s:M}), self.d_ins.update({s:d_ins}), self.e_ins.update({s:e_ins}),
-                                  self.f_ins.update({s:f_ins}), self.g_ins.update({s:g_ins})]
+                list_log_inner = [self.m.update({"m"+str(i)+'.'+str(s):m}), self.M.update({"M"+str(i)+'.'+str(s):M}),
+                                  self.d_ins.update({'d_ins'+str(i)+'.'+str(s):d_ins}),
+                                  self.e_ins.update({'e_ins'+str(i)+'.'+str(s):e_ins}),
+                                  self.f_ins.update({'f_ins'+str(i)+'.'+str(s):f_ins}),
+                                  self.g_ins.update({'g_ins'+str(i)+'.'+str(s):g_ins})]
+
+                dict_log_inner.update(sorted(flatdict.FlatDict(self.m).items()) + sorted(flatdict.FlatDict(self.M).items())
+                                      + self.d_ins.items() + self.e_ins.items() + self.f_ins.items() + self.g_ins.items())
                 # Update M
                 M['x'] = xint_ins
                 M['y'] = yint_ins
                 M['z'] = zint_ins
 
                 frac_ins = cls_ins.frac(m, M, frac_ratio)
-                self.frac_ins[s] = frac_ins
+                self.frac_ins['frac_ins_'+frac_ratio+str(i)+'.'+str(s)] = frac_ins
+
+                dict_log_inner.update(sorted(flatdict.FlatDict({"Mr"+str(i)+'.'+str(s):M}).items()) + self.frac_ins.items())
 
             #STEP 3#
             #Line n-N
@@ -176,10 +196,16 @@ class calc_dspike(object):
             zint_nat = cls_ins.zint(a_ins, b_ins, c_ins, xint_nat, yint_nat)
 
             # Log variables
-            list_log_outer = [self.n.update({i:n}), self.N.update({i:N}), self.a_nat.update({i:a_nat}),
-                              self.b_nat.update({i:b_nat}), self.c_nat.update({i:c_nat}), self.d_nat.update({i:d_nat}),
-                              self.e_nat.update({i:e_nat}), self.f_nat.update({i:f_nat}), self.g_nat.update({i:g_nat}),
-                              self.a_ins.update({i:a_ins}), self.b_ins.update({i:b_ins}), self.c_ins.update({i:c_ins})]
+            list_log_outer = [self.n.update({'n'+str(i):n}), self.N.update({'N'+str(i):N}),
+                              self.a_nat.update({'a_nat'+str(i):a_nat}), self.b_nat.update({'b_nat'+str(i):b_nat}),
+                              self.c_nat.update({'c_nat'+str(i):c_nat}), self.d_nat.update({'d_nat'+str(i):d_nat}),
+                              self.e_nat.update({'e_nat'+str(i):e_nat}), self.f_nat.update({'f_nat'+str(i):f_nat}),
+                              self.g_nat.update({'g_nat'+str(i):g_nat}), self.a_ins.update({'a_ins'+str(i):a_ins}),
+                              self.b_ins.update({'b_ins'+str(i):b_ins}), self.c_ins.update({'c_ins'+str(i):c_ins})]
+
+            dict_log_outer_2.update(self.d_nat.items() + self.e_nat.items() + self.f_nat.items()
+                                    + self.g_nat.items() + self.a_ins.items() + self.b_ins.items()
+                                    + self.c_ins.items())
             # Update N
 
             N['x'] = xint_nat
@@ -187,8 +213,10 @@ class calc_dspike(object):
             N['z'] = zint_nat
 
             frac_nat = cls_nat.frac(n, N, frac_ratio)
-            self.frac_nat[i] = frac_nat
+            self.frac_nat['frac_nat_'+frac_ratio+str(i)] = frac_nat
 
+            dict_log_outer_2.update(sorted(flatdict.FlatDict({"Nr"+str(s):N}).items()) + self.frac_nat.items())
+            self.log_dict.update(dict_log_outer_1.items() + dict_log_inner.items() + dict_log_outer_2.items())
         return frac_nat
 
 
