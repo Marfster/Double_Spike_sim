@@ -16,11 +16,13 @@ fnat_sim = -1
 fins_sim =  2.2
 #*** Sample/Spike Ratio ***#
 mix = 0.5
+# Dampening of simulated mixtures
+damp = 0.9
 
     # Spike Calculation#
 
 sim1 = calc_dspike_samples(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike1,"120")
-sim1.spike_sim(fnat_sim,fins_sim,mix,3,6,-0.1,-2,'z')
+sim1.spike_sim(fnat_sim,fins_sim,mix,damp,3,6,-0.1,-2,'z')
 
 log_dict = {}
 counter = 0
@@ -31,4 +33,4 @@ for calc_dspike_object in calc_dspike:
 
 log_df = pd.DataFrame.from_dict(log_dict, orient='index')
 print log_df
-log_df.to_csv(path + "Sn117-122_116_1367.csv")
+log_df.to_csv(path + "Sn117-122_116_1367_2.csv")

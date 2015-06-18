@@ -166,18 +166,19 @@ class calc_dspike(object):
                                   self.e_ins.update({'e_ins'+str(i)+'.'+str(s):e_ins}),
                                   self.f_ins.update({'f_ins'+str(i)+'.'+str(s):f_ins}),
                                   self.g_ins.update({'g_ins'+str(i)+'.'+str(s):g_ins})]
-
                 dict_log_inner.update(sorted(flatdict.FlatDict(self.m).items()) + sorted(flatdict.FlatDict(self.M).items())
                                       + self.d_ins.items() + self.e_ins.items() + self.f_ins.items() + self.g_ins.items())
-                # Update M
-                M['x'] = xint_ins
-                M['y'] = yint_ins
-                M['z'] = zint_ins
 
-                frac_ins = cls_ins.frac(m, M, frac_ratio)
+                # Update M
+                Mr = {}
+                Mr['x'] = xint_ins
+                Mr['y'] = yint_ins
+                Mr['z'] = zint_ins
+
+                frac_ins = cls_ins.frac(m, Mr, frac_ratio)
                 self.frac_ins['frac_ins_'+frac_ratio+str(i)+'.'+str(s)] = frac_ins
 
-                dict_log_inner.update(sorted(flatdict.FlatDict({"Mr"+str(i)+'.'+str(s):M}).items()) + self.frac_ins.items())
+                dict_log_inner.update(sorted(flatdict.FlatDict({"Mr"+str(i)+'.'+str(s):Mr}).items()) + self.frac_ins.items())
 
             #STEP 3#
             #Line n-N
@@ -215,7 +216,7 @@ class calc_dspike(object):
             frac_nat = cls_nat.frac(n, N, frac_ratio)
             self.frac_nat['frac_nat_'+frac_ratio+str(i)] = frac_nat
 
-            dict_log_outer_2.update(sorted(flatdict.FlatDict({"Nr"+str(s):N}).items()) + self.frac_nat.items())
+            dict_log_outer_2.update(sorted(flatdict.FlatDict({"Nr"+str(i):N}).items()) + self.frac_nat.items())
             self.log_dict.update(dict_log_outer_1.items() + dict_log_inner.items() + dict_log_outer_2.items())
         return frac_nat
 
@@ -260,18 +261,32 @@ class calc_dspike_samples(object):
         self.mix = sample_spike_mix_ratio_sim
         return self.mix
 #       
-    def spike_sim(self, fnat_sim, fins_sim, mix_ratio, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+    def spike_sim(self, fnat_sim, fins_sim, mix_ratio, dampening,iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
         mix_ini = self.mix_sim(fnat_sim, fins_sim, mix_ratio)
+        mix_sim = {}
+        mix_sim_mean = {}
+        mix_sim_up = {}
+        for value in range(len(self.Sn_data)):
+            mix_sim[value] = {}
+            for isotope in self.Sn_data:
+                 mix_sim[value][isotope] = (mix_ini[isotope]/self.Sn_data[isotope].mean()) * self.Sn_data[isotope][value]
+
+        for isotope in mix_sim[0]:
+            mix_sim_mean[isotope] = {}
+            sum = 0
+            for value in range(len(self.Sn_data)):
+                mix_sim_mean[isotope][value] = (mix_ini[isotope]/self.Sn_data[isotope].mean()) * self.Sn_data[isotope][value]
+                sum += mix_sim_mean[isotope][value]
+            mix_sim_mean[isotope] = sum/len(mix_sim_mean[isotope])
 
         for value in range(len(self.Sn_data)):
-            mix_sim = {}
-            for isotope in self.Sn_data:
-                 mix_sim[isotope] = (mix_ini[isotope]/self.Sn_data[isotope][value]) * self.Sn_data[isotope].mean()
+            mix_sim_up[value] = {}
+            for isotope in mix_sim[value]:
+                mix_sim_up[value][isotope] = (dampening * (mix_sim[value][isotope] - mix_sim_mean[isotope])) + mix_sim_mean[isotope]
 
-            mix_sim_abund = load_ratio_dict(mix_sim,self.data_denom)
-
+        for value in range(len(mix_sim_up)):
                 # Spike Calculation#
-
+            mix_sim_abund = load_ratio_dict(mix_sim_up[value],self.data_denom)
             mix = dspike_formulas(mix_sim_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
             dspike_single = calc_dspike()
 
