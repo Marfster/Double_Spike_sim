@@ -4,6 +4,8 @@ from math import log10
 from iso_properties import *
 import collections
 import flatdict
+import numpy as np
+import pandas as pd
 # Formulas for Double spike calculations#
 
 #*** Natural Fractionation & Instrumental Fractionation***#
@@ -232,6 +234,7 @@ class calc_dspike_samples(object):
         self.spike_list = spike_list
         self.data_denom = data_isotope_denom
         self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
+        self.log_file_rang = {}
 
     def mix_sim(self, fnat_sim, fins_sim, mix_ratio):
         # Mix Sample-Spike
@@ -292,14 +295,69 @@ class calc_dspike_samples(object):
 
             dspike_single.dspike_calc(self.std, mix, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio)
 
-        return dspike_single
-#   def dspike_calc:
+        return self.log_file()
+
+    def spike_sim_p_range(self, mix_range, fnat_sim, fins_sim, dampening, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        log_file_range = collections.OrderedDict()
+
+        for mixed in mix_range:
+            log_file_range.update({mixed : self.spike_sim(fnat_sim,fins_sim,mixed,dampening,iter_nat,iter_ins,frac_nat,frac_ins,frac_ratio)})
+
+        return log_file_range
 
 
-#    def log_file:
+#  def dspike_calc:
+
+    def log_file(self):
+        counter = 0
+        log_dict = {}
+
+        for calc_dspike_object in calc_dspike:
+            log_dict[counter] = calc_dspike_object.log_dict
+            counter += 1
+
+        log_df = pd.DataFrame.from_dict(log_dict, orient='index')
+        calc_dspike._registry = []
+
+        return log_df
+
+    def error_vs_p(self, log_file_range, frac_ratio):
+        frac_nat_ppm = []
+        S_SP_ratio = []
+        for p in log_file_range:
+            frac_nat_ppm.append(np.abs(((log_file_range[p]['frac_nat_'+frac_ratio+"2"].std()/
+                                           np.sqrt(len(log_file_range[p]['frac_nat_'+frac_ratio+"2"])))/log_file_range[p]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
+            S_SP_ratio.append((1-p)/p)
+
+        return S_SP_ratio, frac_nat_ppm
+
+def spike_sim_q_range(q_range, spike1, spike2, Sn_meas_obj, df_new, Sn_mass_obj, spike_ls, mix, fnat_sim, fins_sim, dampening, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+    log_file_range = collections.OrderedDict()
+
+    for q in q_range:
+        spike_mix = {}
+        for isotope in spike1:
+             spike_mix[isotope] = spike1[isotope] * q + spike2[isotope] * (1-q)
+        spike_obj = load_abundance_dict(spike_mix)
+        q_sim = calc_dspike_samples(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike_ls,"120")
+        log_file_range.update({q : q_sim.spike_sim(fnat_sim,fins_sim,mix,dampening,iter_nat,iter_ins,frac_nat,frac_ins,frac_ratio)})
+#
+    return log_file_range
+
+def error_vs_q(log_file_range, frac_ratio):
+    frac_nat_ppm = []
+    q_ls = []
+    for q in log_file_range:
+        #frac_nat_ppm.append(np.abs(((log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()/
+        #                                   np.sqrt(len(log_file_range[q]['frac_nat_'+frac_ratio+"2"])))/log_file_range[q]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
+        frac_nat_ppm.append(np.abs(log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()))
+        q_ls.append(q)
+
+    return q_ls, frac_nat_ppm
 
 
-#    def vis_sim:
+
+
 
 
 

@@ -23,8 +23,14 @@ meas_denom = "120"
 # Spike - Isotope Abundances
 #*** Import composition of Sn Spike ***#
 
-spike_dict = {"112" : 0.0003468, "114" : 0.0003468, "115": 0.0003958,"116" : 0.01300079, "117": 0.43863839,
+spike_dict_117_122 = {"112" : 0.0003468, "114" : 0.0003468, "115": 0.0003958,"116" : 0.01300079, "117": 0.43863839,
               "118": 0.02698559, "119" : 0.01077660, "120" : 0.030053, "122" : 0.4700396, "124" : 0.00941660}
+
+spike_117 = {"112" : 0.0005, "114" : 0.0005, "115" : 0.0006,"116" : 0.0231, "117": 0.8911,
+              "118": 0.0452, "119" : 0.0112, "120" : 0.0218, "122" : 0.0029, "124" : 0.0021}
+
+spike_122 = {"112" : 0.0002, "114" : 0.0002, "115" : 0.0002,"116" : 0.00033, "117": 0.0036,
+              "118": 0.0095, "119" : 0.0104, "120" : 0.0381, "122" : 0.9219, "124" : 0.0165}
 
 # Data - measured mixture
 path = "/Users/marf/Desktop/PhD Temp/Double Spike/Planning Sn 117-122/real data -intern norm/"
@@ -38,5 +44,5 @@ Sn_mass_obj = load_mass_dict(Sn_masses)
 # Abundance object used for calc
 Sn_Lee_obj = load_ratio_dict(Sn_ratios_Lee, Lee_iso_denom)
 Sn_meas_obj = load_ratio_dict(meas_dict, meas_denom)
-spike_obj = load_abundance_dict(spike_dict)
+spike_obj = load_abundance_dict(spike_dict_117_122)
 
