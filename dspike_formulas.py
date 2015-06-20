@@ -348,9 +348,10 @@ def error_vs_q(log_file_range, frac_ratio):
     frac_nat_ppm = []
     q_ls = []
     for q in log_file_range:
-        #frac_nat_ppm.append(np.abs(((log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()/
-        #                                   np.sqrt(len(log_file_range[q]['frac_nat_'+frac_ratio+"2"])))/log_file_range[q]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
-        frac_nat_ppm.append(np.abs(log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()))
+        frac_nat_ppm.append(np.abs(((log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()/
+                                           np.sqrt(len(log_file_range[q]['frac_nat_'+frac_ratio+"2"])))/log_file_range[q]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
+        #frac_nat_ppm.append(np.abs(log_file_range[q]['frac_nat_'+frac_ratio+"2"].std()/
+        #                                   np.sqrt(len(log_file_range[q]['frac_nat_'+frac_ratio+"2"]))))
         q_ls.append(q)
 
     return q_ls, frac_nat_ppm

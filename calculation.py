@@ -16,6 +16,7 @@ fins_sim =  2.2
 #*** Sample/Spike Ratio ***#
 mix = 0.5
 mix_2 = [0.02, 0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95, 0.98]
+mix_3 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 # Dampening of simulated mixtures
 damp = 0.9
 
