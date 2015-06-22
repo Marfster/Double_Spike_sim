@@ -321,7 +321,7 @@ class calc_dspike_sample(object):
             for isotope in mix_sim[value]:
                 mix_sim_up[value][isotope] = (dampening * (mix_sim[value][isotope] - mix_sim_mean[isotope])) + mix_sim_mean[isotope]
 
-         # Spike Calculation for the single measurements of an sample#
+         # Spike Calculation for all measurements of an sample#
         for value in range(len(mix_sim_up)):
             mix_sim_abund = load_ratio_dict(mix_sim_up[value],self.data_denom)
             mix = dspike_formulas(mix_sim_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
@@ -352,7 +352,23 @@ class calc_dspike_sample(object):
         return log_file_range # Returns a log-file for each p containing all parameters
 
 
-#  def dspike_calc:
+    def dspike_corr(self, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        """ Double Spike correction for all measurements of a measured Sample-Spike-Mix (self.Sn_data)
+
+            # iter_nat - number of iterations used for calculation of natural fractionation
+            # iter_ins - number of iterations used for calculation of instrumental fractionation
+            # frac_nat - assumed initial natural fractionation
+            # frac_ins - assumed initial instrumental fractionation
+            # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
+
+        for value in range(len(self.Sn_data)):
+            m_abund = load_ratio_dict(self.Sn_data[value],self.data_denom) # calculates Isotope abundances for measured Sample-Spike-Mix
+            m_cls = dspike_formulas(m_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
+            dspike_single = calc_dspike()
+
+            dspike_single.dspike_calc(self.std, m_cls, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio)
+
+        return self.log_file() # Return a log_file (dataframe) containing all parameters used Double-Spike calculation
 
     def log_file(self):
         # creates a dataframe from the log-file dictionary
