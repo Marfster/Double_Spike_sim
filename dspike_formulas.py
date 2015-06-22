@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 class dspike_formulas():
-""" Contains all formulas used for Double Spike calculation
+    """ Contains all formulas used for Double Spike calculation
 
     abundances_sample - isotope composition of N (Isotopes_Abundances object)
     abundances_spike - isotope composition of SP (Isotopes_Abundances object)
