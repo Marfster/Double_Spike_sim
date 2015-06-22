@@ -85,7 +85,13 @@ class Isotope_Abundances():
         self.isotope_abundances[isotope_nom] = value
 
     def add_abundances_dict(self, abundances_dict):
+        sum_abundances = 0
         self.isotope_abundances = abundances_dict
+        for isotope in self.isotope_abundances:
+            sum_abundances += self.isotope_abundances[isotope]
+        scale_factor = 1/sum_abundances
+        for isotope in self.isotope_abundances:
+            self.isotope_abundances[isotope] = self.isotope_abundances[isotope] * scale_factor # Scale to 1
 
     def calc_ratios(self, isotope_denom):
         sum_abundances = 0
@@ -93,7 +99,8 @@ class Isotope_Abundances():
         for isotope in self.isotope_abundances:
             sum_abundances += self.isotope_abundances[isotope]
         scale_factor = 1/sum_abundances
-        self.isotope_abundances[isotope] = self.isotope_abundances[isotope] * scale_factor # Scale to 1
+        for isotope in self.isotope_abundances:
+            self.isotope_abundances[isotope] = self.isotope_abundances[isotope] * scale_factor # Scale to 1
 
         for isotope in self.isotope_abundances:
             self.isotope_ratios[isotope_denom][isotope] = self.isotope_abundances[isotope]/self.isotope_abundances[isotope_denom]

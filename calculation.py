@@ -35,10 +35,10 @@ for q in q_opti_117:
 print spike_q[0.4897].get_all_abundances()
     # Spike Calculation#
 
-sim1 = calc_dspike_samples(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike1,"120")
+sim1 = calc_dspike_sample(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike1,"120")
 sim1_mix_2 = sim1.spike_sim_p_range(mix_2, fnat_sim,fins_sim,damp,3,6,-0.1,-2,'z')
 sim1_q = spike_sim_q_range(q_range,spike_117,spike_122,Sn_meas_obj,df_new,Sn_mass_obj,spike1,mix,fnat_sim,fins_sim,damp,3,6,-0.1,-2,'z')
-sim2 = calc_dspike_samples(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike2,"120")
+sim2 = calc_dspike_sample(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike2,"120")
 sim2_mix_2 = sim2.spike_sim_p_range(mix_2, fnat_sim,fins_sim,damp,3,6,-0.1,-2,'z')
 
 

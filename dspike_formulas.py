@@ -268,6 +268,7 @@ class calc_dspike_sample(object):
             Sn_std_sim_dict[ratio] = fract(self.Sn_std.get_all_ratios(self.data_denom), ratio,
                                                      self.Sn_masses.get_Isotope_mass(ratio),
                                                      self.Sn_masses.get_Isotope_mass(self.data_denom), fnat_sim)
+
         Sn_std_sim = load_ratio_dict(Sn_std_sim_dict,self.data_denom)
 
         sample_spike_mix_abund_dict = {}
@@ -308,6 +309,7 @@ class calc_dspike_sample(object):
             for isotope in self.Sn_data:
                  mix_sim[value][isotope] = (mix_ini[isotope]/self.Sn_data[isotope].mean()) * self.Sn_data[isotope][value]
 
+
         for isotope in mix_sim[0]:
             mix_sim_mean[isotope] = {}
             sum = 0
@@ -320,7 +322,6 @@ class calc_dspike_sample(object):
             mix_sim_up[value] = {}
             for isotope in mix_sim[value]:
                 mix_sim_up[value][isotope] = (dampening * (mix_sim[value][isotope] - mix_sim_mean[isotope])) + mix_sim_mean[isotope]
-
          # Spike Calculation for all measurements of an sample#
         for value in range(len(mix_sim_up)):
             mix_sim_abund = load_ratio_dict(mix_sim_up[value],self.data_denom)
