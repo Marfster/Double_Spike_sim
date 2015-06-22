@@ -6,11 +6,15 @@ import collections
 import flatdict
 import numpy as np
 import pandas as pd
-# Formulas for Double spike calculations#
 
-#*** Natural Fractionation & Instrumental Fractionation***#
-    # x = n or m, X = N or M
 class dspike_formulas():
+""" Contains all formulas used for Double Spike calculation
+
+    abundances_sample - isotope composition of N (Isotopes_Abundances object)
+    abundances_spike - isotope composition of SP (Isotopes_Abundances object)
+    isotope_masses - Isotope masses of the Element (Isotopes_Masses object)
+    list_spike_isotopes - four isotopes used for Double spike calculation
+    [[denominator], nominator1, nominator2, nominator3] """
 
     def __init__(self, abundances_sample, abundances_spike, isotope_masses, list_spike_isotopes):
 
@@ -34,6 +38,8 @@ class dspike_formulas():
 
 
     def X(self, x, pos, frac):
+        #*** Natural Fractionation & Instrumental Fractionation***#
+        # x = n or m, X = N or M
         X = x[pos] * (self.ma1[pos]/self.ma2) ** frac
         return X
 
@@ -90,6 +96,7 @@ class IterRegistry(type):
         return iter(cls._registry)
 
 class calc_dspike(object):
+    """ Contains method for double spike calculation for one measurement of a sample """
     __metaclass__ = IterRegistry
     _registry = []
 
@@ -119,6 +126,7 @@ class calc_dspike(object):
         self.log_dict = collections.OrderedDict()
 
     def dspike_calc(self, cls_nat, cls_ins, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        """ Performs double spike calculation for one measurement of a sample
         # cls_nat - sample object of class calc_dspike
         # cls_ins - mixture object of class calc_dspike
         # iter_nat - number of iterations used for calculation of natural fractionation
@@ -126,6 +134,7 @@ class calc_dspike(object):
         # frac_nat - assumed initial natural fractionation
         # frac_ins - assumed initial instrumental fractionation
         # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used
+        """
         dict_log_inner = collections.OrderedDict()
         dict_log_outer_1 = collections.OrderedDict()
         dict_log_outer_2 = collections.OrderedDict()
@@ -223,8 +232,16 @@ class calc_dspike(object):
         return frac_nat
 
 
-class calc_dspike_samples(object):
+class calc_dspike_sample(object):
+    """ Contains methods for Spike Simulation and Double Spike correction
 
+        # Sn_meas_obj - composition of the sample/standard (internal norm) (Isotopes_Abundances object)
+        # data - dataframe containing the measurement (m for dspike correction, n for dspike simulation)
+        # spike_obj = composition of the double spike (internal norm) (Isotopes_Abundances object)
+        # Sn_mass_obj - Isotope masses of the Element (Isotopes_Masses object)
+        # spike_lists - Isotope used for spike calculation [[denominator],[nominator1, nominator2, nominator3]]
+        # data_isotope_denom - "Denominator isotope in measured data"
+        """
     def __init__(self, Sn_meas_obj, data, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
         self.Sn_std = Sn_meas_obj
         self.Sn_data = data
@@ -237,7 +254,11 @@ class calc_dspike_samples(object):
         self.log_file_rang = {}
 
     def mix_sim(self, fnat_sim, fins_sim, mix_ratio):
-        # Mix Sample-Spike
+        """ Simulates a Sample-Spike-Mix with natural and instrumental fractionation
+            # fnat_sim - simulated natural fractionation
+            # fins_sim - simulated instrumental fractionation
+            # mix_ratio - p (Ratio of Sample/Spike-Mix)
+        """
         def fract(x, pos, ma1, ma2, frac):
                 X = x[pos] * (ma1/ma2) ** frac
                 return X
@@ -265,6 +286,19 @@ class calc_dspike_samples(object):
         return self.mix
 #       
     def spike_sim(self, fnat_sim, fins_sim, mix_ratio, dampening,iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        """ Performs Double-Spike Simulation
+
+            # fnat_sim - simulated natural fractionation
+            # fins_sim - simulated instrumental fractionation
+            # mix_ratio - p (Ratio of Sample/Spike-Mix)
+            # dampening - adds noise on "m" with variation of the measured n
+            # iter_nat - number of iterations used for calculation of natural fractionation
+            # iter_ins - number of iterations used for calculation of instrumental fractionation
+            # frac_nat - assumed initial natural fractionation
+            # frac_ins - assumed initial instrumental fractionation
+            # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
+
+        # Creates an "m" for Sample-Spike-Mix with the data of the measurement for n
         mix_ini = self.mix_sim(fnat_sim, fins_sim, mix_ratio)
         mix_sim = {}
         mix_sim_mean = {}
@@ -287,28 +321,41 @@ class calc_dspike_samples(object):
             for isotope in mix_sim[value]:
                 mix_sim_up[value][isotope] = (dampening * (mix_sim[value][isotope] - mix_sim_mean[isotope])) + mix_sim_mean[isotope]
 
+         # Spike Calculation for the single measurements of an sample#
         for value in range(len(mix_sim_up)):
-                # Spike Calculation#
             mix_sim_abund = load_ratio_dict(mix_sim_up[value],self.data_denom)
             mix = dspike_formulas(mix_sim_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
             dspike_single = calc_dspike()
 
             dspike_single.dspike_calc(self.std, mix, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio)
 
-        return self.log_file()
+        return self.log_file() # Return a log_file (dataframe) containing all parameters used Double-Spike calculation
 
     def spike_sim_p_range(self, mix_range, fnat_sim, fins_sim, dampening, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+        """ Double-Spike Simulation with varying Sample-Spike-Ratio (p)
+
+        # mix_range - list of p-values (Ratio of Sample/Spike-Mix) [0.1, 0.2, 0.3, ...]
+        # fnat_sim - simulated natural fractionation
+        # fins_sim - simulated instrumental fractionation
+        # dampening - adds noise on "m" with variation of the measured n
+        # iter_nat - number of iterations used for calculation of natural fractionation
+        # iter_ins - number of iterations used for calculation of instrumental fractionation
+        # frac_nat - assumed initial natural fractionation
+        # frac_ins - assumed initial instrumental fractionation
+        # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
+
         log_file_range = collections.OrderedDict()
 
         for mixed in mix_range:
             log_file_range.update({mixed : self.spike_sim(fnat_sim,fins_sim,mixed,dampening,iter_nat,iter_ins,frac_nat,frac_ins,frac_ratio)})
 
-        return log_file_range
+        return log_file_range # Returns a log-file for each p containing all parameters
 
 
 #  def dspike_calc:
 
     def log_file(self):
+        # creates a dataframe from the log-file dictionary
         counter = 0
         log_dict = {}
 
@@ -322,6 +369,9 @@ class calc_dspike_samples(object):
         return log_df
 
     def error_vs_p(self, log_file_range, frac_ratio):
+        """ Calculates the Error of fnat (natural fractionation)
+            log-file_range returned from "spike_sim_p_range" method
+            frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used to calculate the error"""
         frac_nat_ppm = []
         S_SP_ratio = []
         for p in log_file_range:
@@ -332,6 +382,25 @@ class calc_dspike_samples(object):
         return S_SP_ratio, frac_nat_ppm
 
 def spike_sim_q_range(q_range, spike1, spike2, Sn_meas_obj, df_new, Sn_mass_obj, spike_ls, mix, fnat_sim, fins_sim, dampening, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
+    """ Double-Spike Simulation with varying Spike1-Spike2-Ratio (q)
+
+        # q_range - list of q-values (Ratio of Spike1/Spike2-Mix) [0.1, 0.2, 0.3, ...]
+        # spike1 - composition of spike1 (Isotopes_Abundances object)
+        # spike2 - composition of spike2 (Isotopes_Abundances object)
+        # Sn_meas_obj - composition of the sample/standard (internal norm) (Isotopes_Abundances object)
+        # df_new - dataframe containing the measurement (m for dspike correction, n for dspike simulation)
+        # Sn_mass_obj - Isotope masses of the Element (Isotopes_Masses object)
+        # spike_ls - Isotope used for spike calculation [[denominator],[nominator1, nominator2, nominator3]]
+        # mix - p (Ratio of Sample/Spike-Mix)
+        # fnat_sim - simulated natural fractionation
+        # fins_sim - simulated instrumental fractionation
+        # dampening - adds noise on "m" with variation of the measured n
+        # iter_nat - number of iterations used for calculation of natural fractionation
+        # iter_ins - number of iterations used for calculation of instrumental fractionation
+        # frac_nat - assumed initial natural fractionation
+        # frac_ins - assumed initial instrumental fractionation
+        # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
+
     log_file_range = collections.OrderedDict()
 
     for q in q_range:
@@ -345,6 +414,9 @@ def spike_sim_q_range(q_range, spike1, spike2, Sn_meas_obj, df_new, Sn_mass_obj,
     return log_file_range
 
 def error_vs_q(log_file_range, frac_ratio):
+    """ Calculates the Error of fnat (natural fractionation)
+        log-file_range returned from "spike_sim_q_range" method
+        frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used to calculate the error"""
     frac_nat_ppm = []
     q_ls = []
     for q in log_file_range:
