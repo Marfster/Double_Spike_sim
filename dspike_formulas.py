@@ -424,7 +424,7 @@ def spike_sim_q_range(q_range, spike1, spike2, Sn_meas_obj, df_new, Sn_mass_obj,
         for isotope in spike1:
              spike_mix[isotope] = spike1[isotope] * q + spike2[isotope] * (1-q)
         spike_obj = load_abundance_dict(spike_mix)
-        q_sim = calc_dspike_samples(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike_ls,"120")
+        q_sim = calc_dspike_sample(Sn_meas_obj,df_new,spike_obj,Sn_mass_obj,spike_ls,"120")
         log_file_range.update({q : q_sim.spike_sim(fnat_sim,fins_sim,mix,dampening,iter_nat,iter_ins,frac_nat,frac_ins,frac_ratio)})
 #
     return log_file_range
