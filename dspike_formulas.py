@@ -363,7 +363,7 @@ class calc_dspike_sample(object):
             # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
 
         for value in range(len(self.Sn_data)):
-            m_abund = load_ratio_dict(self.Sn_data[value],self.data_denom) # calculates Isotope abundances for measured Sample-Spike-Mix
+            m_abund = load_ratio_dict(self.Sn_data.ix[value,:].to_dict(),self.data_denom) # calculates Isotope abundances for measured Sample-Spike-Mix
             m_cls = dspike_formulas(m_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
             dspike_single = calc_dspike()
 
