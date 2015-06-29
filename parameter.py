@@ -47,10 +47,10 @@ spike_124 = {"112" : 0.0003, "114" : 0.0002, "115" : 0.0003,"116" : 0.002, "117"
               "118": 0.0041, "119" : 0.0021, "120" : 0.0094, "122" : 0.0104, "124" : 0.9696}
 
 # Data - measured mixture
-path = "/Users/marf/Desktop/PhD Temp/Double Spike/Planning Sn 117-122/real data -intern norm/"
-df = pd.read_csv(str(path + "2015_03_25_1367_raw_ratio_corr.csv"))
-df_new = df.ix[:,"112":"124"]
-df_new = df_new.drop(["117_2", "118_2", "119_2", "122_2"], axis=1)
+#path = "/Users/marf/Desktop/PhD Temp/Double Spike/Planning Sn 117-122/real data -intern norm/"
+#df = pd.read_csv(str(path + "2015_03_25_1367_raw_ratio_corr.csv"))
+#df_new = df.ix[:,"112":"124"]
+#df_new = df_new.drop(["117_2", "118_2", "119_2", "122_2"], axis=1)
 
 # Masses object used for calc
 Sn_mass_obj = load_mass_dict(Sn_masses)
