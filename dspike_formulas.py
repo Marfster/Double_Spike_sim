@@ -37,10 +37,11 @@ class dspike_formulas():
         self.ma2 = isotope_masses.get_Isotope_mass(list_spike_isotopes[0][0])
 
 
-    def X(self, x, pos, frac):
+    def X(self, x, pos, frac, n = None):
         #*** Natural Fractionation & Instrumental Fractionation***#
         # x = n or m, X = N or M
         X = x[pos] * (self.ma1[pos]/self.ma2) ** frac
+        #X = x[pos] *  (frac +0j) ** ((self.ma1[pos] ** n) - (self.ma2 ** n))
         return X
 
     #describe plane x - X - SP with a, b, c:
@@ -87,8 +88,9 @@ class dspike_formulas():
         zint = a * xint + b * yint + c
         return zint
 
-    def frac(self, x, X, pos): # pos = 'x', 'y' or 'z'
+    def frac(self, x, X, pos, n = None): # pos = 'x', 'y' or 'z'
         frac = log10(X[pos]/x[pos])/log10(self.ma1[pos]/self.ma2)
+        #frac = (X[pos]/x[pos]) ** (1/(self.ma1[pos] ** n - self.ma2 ** n))
         return frac
 
 class IterRegistry(type):
@@ -145,7 +147,7 @@ class calc_dspike(object):
             # STEP 1#
             N = {}
             for ratio in cls_nat.x:
-                N[ratio] = cls_nat.X(n, ratio, frac_nat)
+                N[ratio] = cls_nat.X(n, ratio, frac_nat, n = 0.001)
             #Plane n-N-SP
             a_nat = cls_nat.a(n, N)
             b_nat = cls_nat.b(n, N)
@@ -160,7 +162,7 @@ class calc_dspike(object):
             for s in range(iter_ins):
                 M = {}
                 for ratio in cls_ins.x:
-                    M[ratio] = cls_ins.X(m, ratio, frac_ins)
+                    M[ratio] = cls_ins.X(m, ratio, frac_ins, n = -0.15)
                 #Line m-M
                 d_ins = cls_ins.d(m, M)
                 e_ins = cls_ins.e(m, d_ins)
@@ -186,7 +188,7 @@ class calc_dspike(object):
                 Mr['y'] = yint_ins
                 Mr['z'] = zint_ins
 
-                frac_ins = cls_ins.frac(m, Mr, frac_ratio)
+                frac_ins = cls_ins.frac(m, Mr, frac_ratio, n = -0.15)
                 self.frac_ins['frac_ins_'+frac_ratio+str(i)+'.'+str(s)] = frac_ins
 
                 dict_log_inner.update(sorted(flatdict.FlatDict({"Mr"+str(i)+'.'+str(s):Mr}).items()) + self.frac_ins.items())
@@ -224,7 +226,7 @@ class calc_dspike(object):
             N['y'] = yint_nat
             N['z'] = zint_nat
 
-            frac_nat = cls_nat.frac(n, N, frac_ratio)
+            frac_nat = cls_nat.frac(n, N, frac_ratio, n = 0.001)
             self.frac_nat['frac_nat_'+frac_ratio+str(i)] = frac_nat
 
             dict_log_outer_2.update(sorted(flatdict.FlatDict({"Nr"+str(i):N}).items()) + self.frac_nat.items())
