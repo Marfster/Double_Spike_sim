@@ -1,6 +1,6 @@
 __author__ = 'marf'
 
-from math import log10
+from math import log10, log1p
 from iso_properties import *
 import collections
 import flatdict
@@ -88,7 +88,7 @@ class dspike_formulas():
         return zint
 
     def frac(self, x, X, pos): # pos = 'x', 'y' or 'z'
-        frac = log10(X[pos]/x[pos])/log10(self.ma1[pos]/self.ma2)
+        frac = np.log(X[pos]/x[pos])/np.log(self.ma1[pos]/self.ma2)
         return frac
 
 class IterRegistry(type):
@@ -392,8 +392,9 @@ class calc_dspike_sample(object):
         frac_nat_ppm = []
         S_SP_ratio = []
         for p in log_file_range:
-            frac_nat_ppm.append(np.abs(((log_file_range[p]['frac_nat_'+frac_ratio+"2"].std()/
-                                           np.sqrt(len(log_file_range[p]['frac_nat_'+frac_ratio+"2"])))/log_file_range[p]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
+            frac_nat_ppm.append(np.abs(log_file_range[p]['frac_nat_'+frac_ratio+"2"].std()))
+            #frac_nat_ppm.append(np.abs(((log_file_range[p]['frac_nat_'+frac_ratio+"2"].std()/
+                                           #np.sqrt(len(log_file_range[p]['frac_nat_'+frac_ratio+"2"])))/log_file_range[p]['frac_nat_'+frac_ratio+"2"].mean())*10**6))
             S_SP_ratio.append((1-p)/p)
 
         return S_SP_ratio, frac_nat_ppm
