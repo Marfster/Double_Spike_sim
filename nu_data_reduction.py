@@ -367,7 +367,7 @@ class int_norm(object):
         return beta_temp
 
 
-    def beta_true_change(self, iterations, element, isotope_nom, isotope_denom, true_ratio, isotope_denom_corr = True, isotope_from_line1 = True):
+    def beta_true_change(self, iterations, element, isotope_nom, isotope_denom, true_ratio, isotope_denom_corr = False, isotope_from_line1 = True):
 
         if not list(self.graph_of_corr[isotope_nom]):
             signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
@@ -393,11 +393,14 @@ class int_norm(object):
                 signal_corr_isotope = self.lookup_signal(corr_isotope, isotope_from_line1)
 
                 isotope_nom_guess = signal_isotope_nom - (signal_corr_isotope * true_ratio_corr)
+                #isotope_nom_guess = signal_isotope_nom
 
                 beta_temp = log(true_ratio / (isotope_nom_guess/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom)
 
                 for i in range(iterations):
                     isotope_ratio = self.interference_corr_all(element, isotope_denom, beta_temp)[isotope_nom]
+                    #isotope_ratio = self.int_norm("Sn", "Sn", isotope_nom, isotope_denom, beta_temp)
+                    #isotope_ratio = 0
                     if isotope_ratio > 0:
                         isotope_ratio_raw = isotope_ratio * (mass_isotope_nom/mass_isotope_denom)**(-beta_temp)
                         beta_update = log(true_ratio / isotope_ratio_raw) / log(mass_isotope_nom/mass_isotope_denom)
@@ -532,7 +535,8 @@ class evaluation(object):
                         bgd_signals[cycle][cup] = {}
                         for meas_point in df_bgd_1[cycle][cup]:
                             if (meas_point in df_bgd_2[cycle][cup]):
-                                avg_cup_cycle_bgd = np.divide((np.add(df_bgd_1[cycle][cup][meas_point], df_bgd_2[cycle][cup][meas_point])),2)
+                                avg_cup_cycle_bgd = np.nanmean([df_bgd_1[cycle][cup][meas_point], df_bgd_2[cycle][cup][meas_point]])
+                                #avg_cup_cycle_bgd = np.divide((np.add(df_bgd_1[cycle][cup][meas_point], df_bgd_2[cycle][cup][meas_point])),2)
                                 bgd_signals[cycle][cup][meas_point] = avg_cup_cycle_bgd
         else:
             bgd_signals = df_bgd_1
@@ -709,22 +713,69 @@ class evaluation(object):
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
-                data_sample[n][isotope] = corr.interference_corr_ratio(element, isotope, isotope_denom, beta,
+                data_sample[n][isotope] = corr.interference_corr_ratio(element, isotope, isotope_denom, beta[n-1],
                                                                        isotope_denom_corr=True,
                                                                        isotope_from_line1=True)
 
             if len(self.isotopes) > 1:
                 for isotope in self.isotopes[1]:
                     data_sample[n][isotope + "_2"] = corr.interference_corr_ratio(element, isotope, isotope_denom,
-                                                                                  beta, isotope_denom_corr=True,
+                                                                                  beta[n-1], isotope_denom_corr=True,
                                                                                   isotope_from_line1=False)
-                    # normalisation with given beta
+        return data_sample
 
+    def norm_beta_to_raw(self, element, isotope_denom, beta):
+        data_sample = {}
+        for n in self.cycles:
+            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                            self.denom_corr_ratio)
+
+            data_sample[n] = {}
+            for isotope in self.isotopes[0]:
+                data_sample[n][isotope] = corr.interference_corr_ratio(element, isotope, isotope_denom, beta[n-1],
+                                                                       isotope_denom_corr=True,
+                                                                       isotope_from_line1=True)
+
+                mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope)
+                mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)
+
+                data_sample[n][isotope] = data_sample[n][isotope] * (mass_isotope_nom / mass_isotope_denom) ** (-beta[n-1])
+
+            if len(self.isotopes) > 1:
+                for isotope in self.isotopes[1]:
+                    data_sample[n][isotope + "_2"] = corr.interference_corr_ratio(element, isotope, isotope_denom,
+                                                                                  beta[n-1], isotope_denom_corr=True,
+                                                                                  isotope_from_line1=False)
+                    mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope)
+                    mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)
+
+                    data_sample[n][isotope + "_2"] = data_sample[n][isotope] * (mass_isotope_nom / mass_isotope_denom) ** (
+                    -beta[n - 1])
+
+        return data_sample
+
+    # normalisation with change true_ratio used for beta_calculation
     def external_norm_Sb_change_true(self, norm_ratio, isotope_denom, iter, changed_true_ratio):
         data_sample = {}
         for n in self.cycles:
             corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
             beta = corr.beta_true_change(iter, "Sb", norm_ratio[0], norm_ratio[1], changed_true_ratio , isotope_denom_corr = False)
+
+            data_sample[n] = {}
+            for isotope in self.isotopes[0]:
+                data_sample[n][isotope] = corr.interference_corr_ratio("Sn", isotope , isotope_denom, beta, isotope_denom_corr = True, isotope_from_line1 = True)
+
+            if len(self.isotopes) > 1:
+                for isotope in self.isotopes[1]:
+                    data_sample[n][isotope + "_2"] = corr.interference_corr_ratio("Sn", isotope , isotope_denom, beta, isotope_denom_corr = True, isotope_from_line1 = False)
+
+        return data_sample
+
+    def internal_norm_Sb_change_true(self, norm_ratio, isotope_denom, iter, changed_true_ratio):
+        data_sample = {}
+        for n in self.cycles:
+            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            beta = corr.beta_true_change(iter, "Sn", norm_ratio[0], norm_ratio[1], changed_true_ratio , isotope_denom_corr = False)
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
@@ -742,6 +793,15 @@ class evaluation(object):
             corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
                             self.denom_corr_ratio)
             beta[n] = corr.beta(iter, element, norm_ratio[0], norm_ratio[1], isotope_denom_corr=False)
+
+        return beta
+
+    def beta_true_change(self, element, norm_ratio, iter, true_ratio):
+        beta = {}
+        for n in self.cycles:
+            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                            self.denom_corr_ratio)
+            beta[n] = corr.beta_true_change(iter, element, norm_ratio[0], norm_ratio[1], true_ratio, isotope_denom_corr=False)
 
         return beta
 
