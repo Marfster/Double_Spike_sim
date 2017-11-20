@@ -1,4 +1,4 @@
-__author__ = 'matthias'
+__author__ = 'Matthias Friebel'
 
 import pandas as pd
 import re
@@ -25,7 +25,7 @@ class NU_data_read(object):
        Functions used for Reading the data
        ***********************************'''
 
-    # Extracts sample name, date, ... of csv file
+    # Extracts sample name, date, ... of NU csv file
     def extract_metadata(self, filenumber, metadata_string):
         datafile = "Data_" + str(filenumber) + ".csv"
 
@@ -36,7 +36,7 @@ class NU_data_read(object):
                 metadata = re.search(r""+metadata_string+",(.*)", line).group(1)
         return metadata
 
-    # Reads in the data
+    # Reads in the data from NU csv files
     def data_read(self, filenumber):
         datafile = "Data_" + str(filenumber) + ".csv"
 
@@ -44,7 +44,7 @@ class NU_data_read(object):
         data = pd.read_csv(self.path + datafile, skiprows=58, index_col='Cycle') # before line 58 only headers
         return data
 
-    # Return the measured signals in the cycle of each sample
+    # Return the measured signals in the cycle of each sample in form of dictionary
     def data_signals(self, filenumber):
         data = self.data_read(filenumber)
         columns = data.columns.values.tolist()
@@ -56,7 +56,7 @@ class NU_data_read(object):
                     dict_signals[cycle][cup] = data[cup].to_dict()
         return dict_signals
 
-    # Applies the Zero correction of each sample
+    # Applies the Zero correction of each sample (csv file) - Signal of measurement cycle - zero cycle
     def data_zero_corr(self, filenumber):
         data = self.data_signals(filenumber)
         # Outlier correction 2SD
@@ -87,7 +87,7 @@ class NU_data_read(object):
         return zero_signals
 
 
-    # Background correction for one sample with one background
+    # Background correction for one sample with one background - not used
     def data_bgd_corr(self, filenumber, filenumber_bgd):
         zero_data = self.data_zero_corr(filenumber)
         zero_data_bgd = self.data_zero_corr(filenumber_bgd)
@@ -165,9 +165,9 @@ class Neptune_data_read(object):
                     bgd_signals[cycle][cup] = cup_cycle
         return bgd_signals
 
-class int_norm(object):
+class normalisation(object):
 
-    def __init__(self, data_dict, cycle_no, cup_configuration, database, mass_range, isotopes_for_corr, denom_corr_ratio=None):
+    def __init__(self, data_dict, cycle_no, cup_configuration, database, mass_range, isotopes_for_corr, denom_corr_ratio=None, law="exp", n_GPL=None):
 
         self.data_dict = data_dict                                                      #dictionary with data (usually zero and/or bgd corrected)
         self.cycle_no = cycle_no                                                        # number of cycles per measurement
@@ -179,9 +179,11 @@ class int_norm(object):
         self.graph_of_corr = self.mass_range.get_graph_of_corr(self.isotopes_for_corr)  # creates a graph of dependencies for topologic sorting
         self.order_of_corr = self.mass_range.get_order_of_corr(self.isotopes_for_corr)  # creates a order for topologic sorting
         self.denom_corr_ratio = denom_corr_ratio                                        # alternative (interference-free) Isotope used for Interference correction on denominator isotope
-    '''***********************************
-       Functions used for internal normalisation
-       ***********************************'''
+        self.law_mass_frac = law
+        self.n_GPL = n_GPL
+    '''*********************************************************************
+       Functions used for internal normalisation and interference correction
+       *********************************************************************'''
 
     # Lookup Isotope Signal
     def lookup_signal(self, isotope, isotope_from_line1 = True):
@@ -197,12 +199,11 @@ class int_norm(object):
             return self.data_dict[cup_list[0][0]][cup_list[0][1]][self.cycle_no]
 
     # Raw Isotope Ratios
-
     def raw_ratio(self, isotope_nom, isotope_denom, isotope_from_line1 = True):
         return self.lookup_signal(isotope_nom, isotope_from_line1)/self.lookup_signal(isotope_denom, isotope_from_line1)
 
-    # Mass fractionation correction
-    def int_norm(self, element_nom,  element_denom, isotope_nom, isotope_denom, beta, isotope_from_line1 = True, corr_isotope_denom = None):
+    # Mass fractionation correction - using exponential law
+    def mass_frac_exp_law(self, element_nom, element_denom, isotope_nom, isotope_denom, beta, isotope_from_line1 = True, corr_isotope_denom = None):
         signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
         if corr_isotope_denom == None:
             signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1 = True)
@@ -213,17 +214,80 @@ class int_norm(object):
 
         return (signal_isotope_nom/signal_isotope_denom) * (mass_isotope_nom/mass_isotope_denom)**beta
 
-    # Interference correction for one interference on the nominator isotope
+    # beta - using exponential law
+    def beta_exp_law(self, true_ratio, ratio_raw, mass_isotope_nom, mass_isotope_denom):
+        return log(true_ratio / (ratio_raw)) / log(mass_isotope_nom/mass_isotope_denom) #using natural logarithm
+
+    # Mass fractionation correction - using exponential law
+    def mass_frac_GPL(self, element_nom, element_denom, isotope_nom, isotope_denom, beta, isotope_from_line1 = True, corr_isotope_denom = None):
+        signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
+        if corr_isotope_denom == None:
+            signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1 = True)
+        else:
+            signal_isotope_denom = corr_isotope_denom
+        mass_isotope_nom = self.database[element_nom]["Masses"].get_Isotope_mass(isotope_nom)
+        mass_isotope_denom = self.database[element_denom]["Masses"].get_Isotope_mass(isotope_denom)
+
+        return (signal_isotope_nom/signal_isotope_denom) * beta**(mass_isotope_nom ** self.n_GPL - mass_isotope_denom ** self.n_GPL)
+
+    # beta - using GPL
+    def beta_GPL(self, true_ratio, ratio_raw, mass_isotope_nom, mass_isotope_denom):
+        return (true_ratio / ratio_raw) ** (1/ (mass_isotope_nom ** self.n_GPL - mass_isotope_denom ** self.n_GPL))
+
+    def n_isotope_flux(self, element_nom, element_denom, isotope_nom, isotope_denom, norm_ratio, isotope_from_line1 = True, corr_isotope_denom = None):
+        signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
+        signal_isotope_ref = self.lookup_signal(norm_ratio[0], isotope_from_line1)
+        if corr_isotope_denom == None:
+            signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1=True)
+        else:
+            signal_isotope_denom = corr_isotope_denom
+
+        mass_isotope_nom = self.database[element_nom]["Masses"].get_Isotope_mass(isotope_nom)
+        mass_isotope_denom = self.database[element_denom]["Masses"].get_Isotope_mass(isotope_denom)
+
+        mass_isotope_nom_ref = self.database[element_nom]["Masses"].get_Isotope_mass(norm_ratio[0])
+
+        true_ratio = self.database[element_nom]["Ratios"].get_ratio(isotope_nom, isotope_denom)
+        true_ratio_ref = self.database[element_nom]["Ratios"].get_ratio(norm_ratio[0], isotope_denom)
+
+        beta_kin = log(mass_isotope_denom/mass_isotope_nom)/log(mass_isotope_denom/mass_isotope_nom_ref)
+        beta_eq = (1/mass_isotope_denom - 1/mass_isotope_nom)/(1/mass_isotope_denom - 1/mass_isotope_nom_ref)
+        beta_inf = log((signal_isotope_nom/signal_isotope_denom)/true_ratio) / log((signal_isotope_ref/signal_isotope_denom)/true_ratio_ref)
+        return (beta_inf - beta_kin) / (beta_kin - beta_eq)
+
+    def mass_frac_law(self, element_nom, element_denom, isotope, isotope_denom, beta, isotope_from_line1, corr_isotope_denom):
+        if self.law_mass_frac == "exp":
+            return self.mass_frac_exp_law(element_nom, element_denom, isotope, isotope_denom, beta, isotope_from_line1, corr_isotope_denom)
+        elif self.law_mass_frac == "GPL":
+            return self.mass_frac_GPL(element_nom, element_denom, isotope, isotope_denom, beta, isotope_from_line1, corr_isotope_denom)
+        else:
+            print 'wrong input for mass-fractionation law, use "exp" or "GPL"'
+
+    def mass_frac_law_inv(self, isotope_ratio, mass_isotope_nom, mass_isotope_denom, beta):
+        if self.law_mass_frac == "exp":
+            return isotope_ratio * (mass_isotope_nom/mass_isotope_denom)**-beta
+        elif self.law_mass_frac == "GPL":
+            return isotope_ratio * beta**-(mass_isotope_nom ** self.n_GPL - mass_isotope_denom ** self.n_GPL)
+        else:
+            print 'wrong input for mass-fractionation law, use "exp" or "GPL"'
+
+
+    def beta_law(self, true_ratio, ratio_raw, mass_isotope_nom, mass_isotope_denom):
+        if self.law_mass_frac == "exp":
+            return self.beta_exp_law(true_ratio, ratio_raw, mass_isotope_nom, mass_isotope_denom)
+
+        elif self.law_mass_frac == "GPL":
+            return self.beta_GPL(true_ratio, ratio_raw, mass_isotope_nom, mass_isotope_denom)
+
+    # Interference correction for interference on the nominator isotopes
     def interference_corr_all(self, element_denom, isotope_denom, beta, corr_isotope_denom = None, isotope_from_line1 = True):
         corr_dict = {}
         counter = 0
         for level in self.order_of_corr:
-            if counter == 0:
+            if counter == 0: # isotope masses with no isobaric interference - only internal normalisation
                 for isotope in level:
                     element_nom = self.mass_range.get_isotopes(isotope)[0]
-                    corr_dict[isotope] = self.int_norm(element_nom, element_denom, isotope, isotope_denom, beta,
-                                                       isotope_from_line1=isotope_from_line1,
-                                                       corr_isotope_denom=corr_isotope_denom)
+                    corr_dict[isotope] = self.mass_frac_law(element_nom, element_denom, isotope, isotope_denom, beta, isotope_from_line1, corr_isotope_denom)
                     #print isotope
                     #print element_nom
                     #print element_denom
@@ -231,12 +295,12 @@ class int_norm(object):
                     #print corr_dict[isotope]
                 counter += 1
             elif counter > 0:
-                for isotope in level:
+                for isotope in level: # isotope masses with one or more interferences - search for interference element on isotope mass and the corresponding isotope mass used interference correction
                     corr_isotopes = list(self.graph_of_corr[isotope])
 
                     #print isotope
 
-                    for corr_isotope in corr_isotopes:
+                    for corr_isotope in corr_isotopes: # search for element of isobaric interference (e.g. "Te" on 124Sn) &
                         #print self.mass_range.get_isotopes(isotope)
                         element_nom = self.mass_range.get_isotopes(isotope)
                         #corr_isotope_set = set(corr_isotopes)
@@ -249,11 +313,9 @@ class int_norm(object):
                         if isotope in corr_dict:
                             None
                         else:
-                            corr_dict[isotope] = self.int_norm(element_nom, element_denom, isotope, isotope_denom, beta,
-                                                               isotope_from_line1=isotope_from_line1,
-                                                               corr_isotope_denom=corr_isotope_denom)
+                            corr_dict[isotope] = self.mass_frac_law(element_nom, element_denom, isotope, isotope_denom, beta, isotope_from_line1, corr_isotope_denom)
 
-                        true_ratio_corr = self.database[element_corr[0]]["Ratios"].get_ratio(isotope, corr_isotope)
+                        true_ratio_corr = self.database[element_corr[0]]["Ratios"].get_ratio(isotope, corr_isotope) # get true ratio (corr_isotope/isotope_nominator - e.g 125Te/124Sn) from database used for correction
                         corr_dict[isotope] -= corr_dict[corr_isotope] * true_ratio_corr
 
                         #print isotope
@@ -267,13 +329,13 @@ class int_norm(object):
 
         return corr_dict
 
-    # Interference correction
+    # Interference correction allows to correct also interference on denominator isotope
     def interference_corr_ratio(self, element, isotope_nom, isotope_denom, beta, isotope_denom_corr = True, isotope_from_line1 = True):
 
-        if (isotope_nom in self.order_of_corr[0] == True) and (isotope_denom in self.order_of_corr[0] == True):
+        if (isotope_nom in self.order_of_corr[0] == True) and (isotope_denom in self.order_of_corr[0] == True): # interference correction for case that nominator and denominator isotope is free of interferences
             isotope_ratio = self.interference_corr_all(element, isotope_denom, beta, isotope_from_line1 = isotope_from_line1)[isotope_nom]
 
-        elif (isotope_denom in self.order_of_corr[0]) == False and (isotope_denom_corr == True):
+        elif (isotope_denom in self.order_of_corr[0]) == False and (isotope_denom_corr == True): # interference correction for case that nominator and denominator isotope contain interferences and interference on denominator isotope is corrected by using an interference free isotope as new denominator isotope
             new_isotope_denom = self.denom_corr_ratio['isotope_denom']
             isotope_ratio = self.interference_corr_all(element, new_isotope_denom, beta, isotope_from_line1 = isotope_from_line1)[isotope_denom] # eg(Sn120/Sn119)
             mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)
@@ -291,50 +353,69 @@ class int_norm(object):
         return isotope_ratio
 
     def beta(self, iterations, element, isotope_nom, isotope_denom, isotope_denom_corr = True, isotope_from_line1 = True):
+        # beta used in exponential law for normalisation (uses true_ratio from database)
 
         if not list(self.graph_of_corr[isotope_nom]):
-            signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
-            signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1)
-            true_ratio = self.database[element]["Ratios"].get_ratio(isotope_nom, isotope_denom)
-            mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom)
-            mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)
-            beta_temp = log(true_ratio / (signal_isotope_nom/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom)
+            # no interference correction necessary to determine beta for elements and isotopes masses used for normalisation (e.g 116Sn/119Sn or 123Sb/121Sb)
+
+            signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1) # Looks up signal of nominator isotope
+            signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1) # Looks up signal for denominator isotope
+            true_ratio = self.database[element]["Ratios"].get_ratio(isotope_nom, isotope_denom) # Looks up true ratio of nominator/denominator from database
+            mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom) # Looks up mass of nominator isotope
+            mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom) # Looks up mass of denominator isotope
+
+
+            raw_ratio = signal_isotope_nom/signal_isotope_denom
+            beta_temp = self.beta_law(true_ratio, raw_ratio, mass_isotope_nom, mass_isotope_denom)
+            #beta_temp = log(true_ratio / (signal_isotope_nom/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom) # calculates beta using exponential law
 
         else:
 
             if isotope_denom_corr == False:
-                signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
-                signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1)
-                true_ratio = self.database[element]["Ratios"].get_ratio(isotope_nom, isotope_denom)
-                mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom)
-                mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)
+                # interference correction necessary to determine beta for elements and isotopes masses used for normalisation, but only on nominator isotopes (e.g. 116Sn/120Sn - 120Sn not interference corrected before detemine beta)
 
-                corr_isotopes = list(self.graph_of_corr[isotope_nom])
-                corr_isotope = corr_isotopes[0]
-                element_corr = set(self.mass_range.get_isotopes(corr_isotope))
-                element_corr = element_corr.intersection(self.mass_range.get_isotopes(isotope_nom))
-                element_corr = list(element_corr)[0]
-                true_ratio_corr = self.database[element_corr]["Ratios"].get_ratio(isotope_nom, corr_isotope)
-                signal_corr_isotope = self.lookup_signal(corr_isotope, isotope_from_line1)
+                signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1) # Looks up signal of nominator isotope
+                signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1) # Looks up signal of denominator isotope
+                true_ratio = self.database[element]["Ratios"].get_ratio(isotope_nom, isotope_denom) # Looks up true ratio of nominator/denominator from database
+                mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom) # Looks up mass of nominator isotope
+                mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom) # Looks up mass of nominator isotope
 
-                isotope_nom_guess = signal_isotope_nom - (signal_corr_isotope * true_ratio_corr)
+                corr_isotopes = list(self.graph_of_corr[isotope_nom]) # Looks up correction isotopes to correct isobaric interferences - e.g for 116Sn -- 111Cd
 
-                beta_temp = log(true_ratio / (isotope_nom_guess/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom)
+                for i in corr_isotopes: # Iterates over corr_isotopes list e.g. ["111", ..] - "111" then "..."
+                    element_corr = set(self.mass_range.get_isotopes(i)) # Check which elements are on mass "111" - "Cd"
+                    element_corr = element_corr.intersection(self.mass_range.get_isotopes(isotope_nom))  # Select corr element based on intersection of corr_element and elements for isotope_nom (e.g. "111" - "Cd", "116" - "Sn,Cd" --> "Cd")
+                    element_corr = list(element_corr)[0] # element_corr = "Te" or "Xe" ...
+                    true_ratio_corr = self.database[element_corr]["Ratios"].get_ratio(isotope_nom, i) # Looks up true ratio of nominator_isotope/corr_isotope for element_corr (e.g. "116"/"111" for Cd)
+                    signal_corr_isotope = self.lookup_signal(i, isotope_from_line1) # Looks up signal of corr_isotope - e.g. signal on  "111Cd"
+                    signal_isotope_nom -= (signal_corr_isotope * true_ratio_corr) # subtract e.g "111Cd" * true_ratio("116Cd"/"111Cd")
+
+                raw_ratio = signal_isotope_nom / signal_isotope_denom
+                #beta_temp = log(true_ratio / (signal_isotope_nom/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom) # calculate beta
+                beta_temp = self.beta_law(true_ratio, raw_ratio, mass_isotope_nom, mass_isotope_denom)
+
+                #print isotope_nom, beta_temp
 
                 for i in range(iterations):
                     isotope_ratio = self.interference_corr_all(element, isotope_denom, beta_temp)[isotope_nom]
+
                     if isotope_ratio > 0:
-                        isotope_ratio_raw = isotope_ratio * (mass_isotope_nom/mass_isotope_denom)**(-beta_temp)
-                        beta_update = log(true_ratio / isotope_ratio_raw) / log(mass_isotope_nom/mass_isotope_denom)
+                        raw_ratio = self.mass_frac_law_inv(isotope_ratio, mass_isotope_nom, mass_isotope_denom, beta_temp)
+
+                        #beta_update = log(true_ratio / isotope_ratio_raw) / log(mass_isotope_nom/mass_isotope_denom)
+                        beta_update = self.beta_law(true_ratio, raw_ratio, mass_isotope_nom, mass_isotope_denom)
 
                         convergence = (beta_temp - beta_update) / beta_temp
                         beta_temp = beta_update
                     else:
                         print "Iterative Beta Correction Failed! --> beta_temp before iteration used"
-                        beta_temp = log(true_ratio / (isotope_nom_guess/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom)
+                        #beta_temp = log(true_ratio / (signal_isotope_nom/ signal_isotope_denom)) / log(mass_isotope_nom/mass_isotope_denom)
+                        beta_temp = self.beta_law(true_ratio, raw_ratio, mass_isotope_nom, mass_isotope_denom)
                         break
 
             elif isotope_denom_corr == True:
+                # interference correction is necessary to determine beta for elements and isotopes masses used for normalisation, nominator and denominator isotopes are interference corrected (e.g 116Sn/120Sn - beta determined by using 117Sn/119Sn for interference corr of 120Sn)
+
                 mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom) #e.g. M(116Sn)
                 mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)# e.g. M(120Sn)
                 true_ratio = self.database[element]["Ratios"].get_ratio(isotope_nom, isotope_denom)
@@ -347,20 +428,22 @@ class int_norm(object):
                 signal_new_isotope_denom = self.lookup_signal(new_isotope_denom, isotope_from_line1)
                 mass_new_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(new_isotope_denom)
 
-                new_true_ratio = self.database[element]["Ratios"].get_ratio(new_isotope_nom, new_isotope_denom)
-                beta_temp = log(new_true_ratio / (signal_new_isotope_nom / signal_new_isotope_denom)) / log(mass_new_isotope_nom / mass_new_isotope_denom)
+                true_ratio_new = self.database[element]["Ratios"].get_ratio(new_isotope_nom, new_isotope_denom)
+                #beta_temp = log(new_true_ratio / (signal_new_isotope_nom / signal_new_isotope_denom)) / log(mass_new_isotope_nom / mass_new_isotope_denom)
+                raw_ratio_new = signal_new_isotope_nom / signal_new_isotope_denom
+                beta_temp = self.beta_law(true_ratio_new, raw_ratio_new, mass_new_isotope_nom, mass_new_isotope_denom)
 
                 for i in range(iterations):
-                    new_isotope_ratio_nom = self.interference_corr_all(element, new_isotope_denom, beta_temp)[isotope_nom] #e.g. 116Sn/119Sn
+                    new_isotope_ratio_nom = self.interference_corr_all(element, new_isotope_denom, beta_temp)[isotope_nom]  #e.g. 116Sn/119Sn
                     new_isotope_ratio_denom = self.interference_corr_all(element, new_isotope_denom, beta_temp)[isotope_denom] # e.g. 120Sn/119Sn
 
-                    new_isotope_ratio_nom_raw = new_isotope_ratio_nom * (mass_isotope_nom/mass_new_isotope_denom)**(-beta_temp)
-                    new_isotope_ratio_denom_raw = new_isotope_ratio_denom * (mass_isotope_denom/mass_new_isotope_denom)**(-beta_temp)
+                    new_isotope_ratio_nom_raw = self.mass_frac_law_inv(new_isotope_ratio_nom, mass_isotope_nom, mass_new_isotope_denom, beta_temp)
+                    new_isotope_ratio_denom_raw = self.mass_frac_law_inv(new_isotope_ratio_denom, mass_isotope_denom, mass_new_isotope_denom, beta_temp)
 
-                    isotope_ratio_raw = new_isotope_ratio_nom_raw / new_isotope_ratio_denom_raw
+                    raw_ratio = new_isotope_ratio_nom_raw / new_isotope_ratio_denom_raw
 
-                    beta_update = log(true_ratio / isotope_ratio_raw) / log(mass_isotope_nom/mass_isotope_denom)
-
+                    #beta_update = log(true_ratio / isotope_ratio_raw) / log(mass_isotope_nom/mass_isotope_denom)
+                    beta_update = self.beta_law(true_ratio, raw_ratio, mass_isotope_nom, mass_isotope_denom)
                     convergence = (beta_temp - beta_update) / beta_temp
                     beta_temp = beta_update
 
@@ -368,8 +451,10 @@ class int_norm(object):
 
 
     def beta_true_change(self, iterations, element, isotope_nom, isotope_denom, true_ratio, isotope_denom_corr = False, isotope_from_line1 = True):
+        # beta used in exponential law but with self-defined true_ratio for normalisation
 
         if not list(self.graph_of_corr[isotope_nom]):
+            # no interference correction necessary to determine beta for elements and isotopes masses used for normalisation (e.g 116Sn/119Sn or 123Sb/121Sb)
             signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
             signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1)
             mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom)
@@ -379,6 +464,8 @@ class int_norm(object):
         else:
 
             if isotope_denom_corr == False:
+                # interference correction necessary to determine beta for elements and isotopes masses used for normalisation, but only on nominator isotopes (e.g. 116Sn/120Sn - 120Sn not interfer
+
                 signal_isotope_nom = self.lookup_signal(isotope_nom, isotope_from_line1)
                 signal_isotope_denom = self.lookup_signal(isotope_denom, isotope_from_line1)
                 mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom)
@@ -413,6 +500,8 @@ class int_norm(object):
                         break
 
             elif isotope_denom_corr == True:
+                # interference correction is necessary to determine beta for elements and isotopes masses used for normalisation, nominator and denominator isotopes are interference corrected (e.g 116Sn/120Sn - beta determined by using 117Sn/119Sn for interference corr of 120Sn)
+
                 mass_isotope_nom = self.database[element]["Masses"].get_Isotope_mass(isotope_nom) #e.g. M(116Sn)
                 mass_isotope_denom = self.database[element]["Masses"].get_Isotope_mass(isotope_denom)# e.g. M(120Sn)
 
@@ -445,6 +534,7 @@ class int_norm(object):
 
 
     def interference_corr_all_raw(self, element_denom, isotope_denom, corr_isotope_denom = None, isotope_from_line1 = True):
+        # Does interference correction with no mass-bias corrected ratios (beta calculation)
         corr_dict = {}
         counter = 0
         for level in self.order_of_corr:
@@ -495,7 +585,7 @@ class int_norm(object):
 
 class evaluation(object):
 
-    def __init__(self, data_dict, cycles, isotopes ,cup_configuration, database, mass_range, isotopes_for_corr, denom_corr_ratio=None):
+    def __init__(self, data_dict, cycles, isotopes ,cup_configuration, database, mass_range, isotopes_for_corr, denom_corr_ratio=None, law="exp", n_GPL=None):
         self.data_dict = data_dict
         self.cycles = cycles
         self.isotopes = isotopes
@@ -504,6 +594,8 @@ class evaluation(object):
         self.mass_range = mass_range
         self.isotopes_for_corr = isotopes_for_corr
         self.denom_corr_ratio = denom_corr_ratio
+        self.law_mass_frac = law
+        self.n_GPL = n_GPL
 
     def get_df(self):
         return self.data_dict
@@ -588,13 +680,29 @@ class evaluation(object):
                 new_corr = evaluation(df_zero, cycles, isotopes, cup_config, database, mass_range, corr_isotopes_Sb , denom_corr_ratio)
 
     #raw signals
+    def raw_signals_all(self):
+        data_sample = {}
+
+        for n in self.cycles:
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            data_sample[n] = {}
+
+            for key in self.mass_range.get_mass_range():
+                data_sample[n][key] = corr.lookup_signal(key, isotope_from_line1=True)
+
+            if len(self.isotopes) > 1:
+                for isotope in self.isotopes[1]:
+                    data_sample[n][key + "_2"] = corr.lookup_signal(key, isotope_from_line1=False)
+
+        return data_sample
+
     def raw_signals(self, isotope_denom):
         data_sample = {}
         isotopes_0 = self.isotopes[0]
         isotopes_0.append(isotope_denom)
 
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
             data_sample[n] = {}
 
             for isotope in isotopes_0:
@@ -605,11 +713,12 @@ class evaluation(object):
                     data_sample[n][isotope + "_2"] = corr.lookup_signal(isotope, isotope_from_line1=False)
 
         return data_sample
+
     #raw ratios
     def raw_ratios(self, isotope_denom):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
             data_sample[n] = {}
 
             for isotope in self.isotopes[0]:
@@ -623,7 +732,7 @@ class evaluation(object):
     def raw_ratios_corr(self, isotope_denom):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
@@ -641,23 +750,23 @@ class evaluation(object):
     def mass_fractionation(self, isotope_denom, iter):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta = corr.beta(iter, "Sn", "116", "120", isotope_denom_corr = False)
             data_sample[n] = {}
 
             for isotope in self.isotopes[0]:
-                data_sample[n][isotope] = corr.int_norm("Sn", "Sn", isotope, isotope_denom, beta)
+                data_sample[n][isotope] = corr.mass_frac_law("Sn", "Sn", isotope, isotope_denom, beta)
 
             if len(self.isotopes) > 1:
                 for isotope in self.isotopes[1]:
-                    data_sample[n][isotope + "_2"] = corr.int_norm("Sn", "Sn", isotope, isotope_denom, beta, isotope_from_line1 = False)
+                    data_sample[n][isotope + "_2"] = corr.mass_frac_law("Sn", "Sn", isotope, isotope_denom, beta, isotope_from_line1 = False)
 
         return data_sample
     # 2 no corr on isotope_denom,
     def internal_norm_1(self, norm_ratio, isotope_denom, iter):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta = corr.beta(iter, "Sn", norm_ratio[0], norm_ratio[1], isotope_denom_corr = False)
 
             data_sample[n] = {}
@@ -674,7 +783,7 @@ class evaluation(object):
     def internal_norm_2(self, norm_ratio, isotope_denom, iter):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta = corr.beta(iter, "Sn", norm_ratio[0], norm_ratio[1], isotope_denom_corr = True)
 
             data_sample[n] = {}
@@ -691,8 +800,8 @@ class evaluation(object):
     def external_norm_Sb(self, norm_ratio, isotope_denom, iter):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
-            beta = corr.beta(iter, "Sb", norm_ratio[0], norm_ratio[1], isotope_denom_corr = False)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
+            beta = corr.beta(iter, "Sb", norm_ratio[0], norm_ratio[1] , isotope_denom_corr = False)
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
@@ -708,8 +817,8 @@ class evaluation(object):
     def norm_beta(self, element, isotope_denom, beta):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
-                            self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                                     self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
@@ -727,8 +836,8 @@ class evaluation(object):
     def norm_beta_to_raw(self, element, isotope_denom, beta):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
-                            self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                                     self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
 
             data_sample[n] = {}
             for isotope in self.isotopes[0]:
@@ -758,7 +867,7 @@ class evaluation(object):
     def external_norm_Sb_change_true(self, norm_ratio, isotope_denom, iter, changed_true_ratio):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta = corr.beta_true_change(iter, "Sb", norm_ratio[0], norm_ratio[1], changed_true_ratio , isotope_denom_corr = False)
 
             data_sample[n] = {}
@@ -774,7 +883,7 @@ class evaluation(object):
     def internal_norm_Sb_change_true(self, norm_ratio, isotope_denom, iter, changed_true_ratio):
         data_sample = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta = corr.beta_true_change(iter, "Sn", norm_ratio[0], norm_ratio[1], changed_true_ratio , isotope_denom_corr = False)
 
             data_sample[n] = {}
@@ -790,20 +899,39 @@ class evaluation(object):
     def beta(self, element, norm_ratio, iter):
         beta = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
-                            self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                                     self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta[n] = corr.beta(iter, element, norm_ratio[0], norm_ratio[1], isotope_denom_corr=False)
 
         return beta
 
+
+
     def beta_true_change(self, element, norm_ratio, iter, true_ratio):
         beta = {}
         for n in self.cycles:
-            corr = int_norm(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
-                            self.denom_corr_ratio)
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr,
+                                     self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
             beta[n] = corr.beta_true_change(iter, element, norm_ratio[0], norm_ratio[1], true_ratio, isotope_denom_corr=False)
 
         return beta
+
+
+    def n_inf(self, element, norm_ratio, isotope_denom):
+        n_inf = {}
+        for n in self.cycles:
+            corr = normalisation(self.data_dict, n, self.cups, self.database, self.mass_range, self.isotopes_for_corr, self.denom_corr_ratio, self.law_mass_frac, self.n_GPL)
+            n_inf[n] = {}
+
+            for isotope in self.isotopes[0]:
+                if isotope == norm_ratio[0]:
+                    None
+                else:
+                    n_inf[n][isotope] = corr.n_isotope_flux(element, element, isotope, isotope_denom, norm_ratio)
+
+        return n_inf
+
+
 
     #outlier detection from https://github.com/joferkington/oost_paper_code/blob/master/utilities.py
     def mad_based_outlier(self, points, thresh=3.5):
