@@ -1,4 +1,4 @@
-__author__ = 'matthias'
+__author__ = 'Matthias Friebel'
 
 from iso_properties import Isotope_Masses, Isotope_Ratios, Isotopes_Mass_Range
 
@@ -92,7 +92,7 @@ database = {"Sn" : {"Masses" : Sn_masses, "Ratios" : Sn_ratios}, "Cd" : {"Masses
             "Xe" : {"Masses" : Xe_masses, "Ratios" : Xe_ratios}, "Sb" : {"Masses" : Sb_masses, "Ratios" : Sb_ratios},
             "I" : {"Masses" : I_masses}, "Pd" : {"Masses" : Pd_masses}}
 
-# Isotopes on Mass range 110 to 131
+# Isotopes on Mass range 110 to 131 used in the different cup configurations
 cycles1_mass_range = Isotopes_Mass_Range()
 cycles1_mass_range.add_mass_range_dict({"110" : ["Pd", "Cd"], "111" : ["Cd"], "112" : ["Sn", "Cd"],
                                         "113" : ["Cd", "In"], "114" : ["Sn", "Cd"], "115" : ["Sn", "In"],
@@ -136,11 +136,12 @@ cycle_Sn_spike_mass_range.add_mass_range_dict({"117" : ["Sn"], "118" : ["Sn"], "
 cycles1_corr = {"Cd" : "111", "Te" : "126"}
 #cycles2_corr = {}
 cycles2_corr = {"Cd" : "111","Te" : "125", "Xe" : "129"}
-cycle_Sb_corr = {"Te" : "125"}
+cycle_Sb_corr = {"Te" : "125", "Xe": "129"}
+
 # Isotopes used for Interference correction on denominator
 denom_corr_ratio = {"isotope_nom" : "117", "isotope_denom" : "119"}
 
-# cup configuration
+# cup configuration used on NU3
 
 cycles1 = {"cycle1" : {"H9 (1)" : "126", "H8 (1)" : "124", "H7 (1)" : "122", "H6 (1)" : "120", "H5 (1)" : "119",
                        "H4 (1)" : "118", "H3 (1)" : "117", "H2 (1)" : "116", "H1 (1)" : "115", "Ax (1)" : "114",
@@ -179,6 +180,8 @@ cycles_spike = {"cycle1" : {"H8 (1)" : "131", "H7 (1)" : "129", "H6 (1)" : "127"
            "zero1" : {"H8 (Z1)" : "131", "H7 (Z1)" : "129", "H6 (Z1)" : "127", "H5 (Z1)" : "126",
                        "H4 (Z1)" : "125", "H3 (Z1)" : "124", "H2 (Z1)" : "123", "H1 (Z1)" : "122", "Ax (Z1)" : "121",
                        "L1 (Z1)" : "120", "L2 (Z1)" : "119", "L3 (Z1)" : "118", "L4 (Z1)" : "117"}}
+
+# cup configuration used on Neptune
 
 cycles_1_Neptune = {"cycle1" : {"124Sn" : "124", "123Sb" : "123", "122Sn" : "122", "121Sb" : "121",
                        "120Sn" : "120", "119Sn" : "119", "118Sn" : "118", "117Sn" : "117"}}
