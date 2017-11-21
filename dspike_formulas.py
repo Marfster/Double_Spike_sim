@@ -1,4 +1,4 @@
-__author__ = 'marf'
+__author__ = 'Matthias Friebel'
 
 from math import log10, log1p
 from iso_properties import *
@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 class dspike_formulas():
-    """ Contains all formulas used for Double Spike calculation
+    """ Contains all formulas used for Double Spike calculation after Siebert et al. (2001)
 
     abundances_sample - isotope composition of N (Isotopes_Abundances object)
     abundances_spike - isotope composition of SP (Isotopes_Abundances object)
@@ -16,31 +16,38 @@ class dspike_formulas():
     list_spike_isotopes - four isotopes used for Double spike calculation
     [[denominator], nominator1, nominator2, nominator3] """
 
-    def __init__(self, abundances_sample, abundances_spike, isotope_masses, list_spike_isotopes):
+    def __init__(self, abundances_sample, abundances_spike, isotope_masses, list_spike_isotopes, law="exp", n_GPL=None):
+        # input values defined in sn_config.py/parameter.py or are read in from ipython notebook
 
-        # list_spike_isotopes = ['116']['117', '120', '122']
-
-        self.sample_ratios = abundances_sample.get_all_ratios(list_spike_isotopes[0][0])
-        self.spike_ratios = abundances_spike.get_all_ratios(list_spike_isotopes[0][0])
-        self.columns_name = {'x' : str(list_spike_isotopes[1][0] + "/" + list_spike_isotopes[0][0]),
+        self.sample_ratios = abundances_sample.get_all_ratios(list_spike_isotopes[0][0]) #calculate isotope ratios of sample/std relative to denominator isotope
+        self.spike_ratios = abundances_spike.get_all_ratios(list_spike_isotopes[0][0]) #calculate isotope ratios of spike relative to denominator isotope
+        self.columns_name = {'x' : str(list_spike_isotopes[1][0] + "/" + list_spike_isotopes[0][0]), # names of isotope columns
                              'y' : str(list_spike_isotopes[1][1] + "/" + list_spike_isotopes[0][0]),
                              'z' : str(list_spike_isotopes[1][2] + "/" + list_spike_isotopes[0][0])}
-        self.x = {'x' : self.sample_ratios[list_spike_isotopes[1][0]],
+        self.x = {'x' : self.sample_ratios[list_spike_isotopes[1][0]], #isotope ratios of Std / natural sample
                   'y' : self.sample_ratios[list_spike_isotopes[1][1]],
                   'z' : self.sample_ratios[list_spike_isotopes[1][2]]}
-        self.SP = {'x' : self.spike_ratios[list_spike_isotopes[1][0]],
+        self.SP = {'x' : self.spike_ratios[list_spike_isotopes[1][0]], #isotope ratios of Sn Spike
                   'y' : self.spike_ratios[list_spike_isotopes[1][1]],
                   'z' : self.spike_ratios[list_spike_isotopes[1][2]]}
-        self.ma1 = {'x' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][0]),
-                    'y' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][1]),
-                    'z' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][2])}
-        self.ma2 = isotope_masses.get_Isotope_mass(list_spike_isotopes[0][0])
+        self.ma1 = {'x' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][0]), # nominator isotope "x" for DS inv
+                    'y' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][1]), # nominator isotope "y" for DS inv
+                    'z' : isotope_masses.get_Isotope_mass(list_spike_isotopes[1][2])} # nominator isotope "z" for DS inv
+        self.ma2 = isotope_masses.get_Isotope_mass(list_spike_isotopes[0][0]) # denominator isotope for DS inv
+        self.law_mass_frac = law # law used for mass_bias correction, by default uses "exp" - exponential law
+        self.n_GPL = n_GPL # n value for GPL, if not defined, n_GPL is by default a NONE-Typ
 
 
     def X(self, x, pos, frac):
         #*** Natural Fractionation & Instrumental Fractionation***#
         # x = n or m, X = N or M
-        X = x[pos] * (self.ma1[pos]/self.ma2) ** frac
+        if self.law_mass_frac == "exp": # uses exponential law
+            X = x[pos] * (self.ma1[pos]/self.ma2) ** frac
+        elif self.law_mass_frac == "GPL": # uses GPL
+            X = x[pos] * frac**(self.ma1[pos]**self.n_GPL - self.ma2**self.n_GPL)
+        else:
+            print 'wrong input for mass-fractionation law, use "exp" or "GPL"'
+            X = None
         return X
 
     #describe plane x - X - SP with a, b, c:
@@ -88,10 +95,16 @@ class dspike_formulas():
         return zint
 
     def frac(self, x, X, pos): # pos = 'x', 'y' or 'z'
-        frac = np.log(X[pos]/x[pos])/np.log(self.ma1[pos]/self.ma2)
+        if self.law_mass_frac == "exp": # uses exponential law
+            frac = np.log(X[pos]/x[pos])/np.log(self.ma1[pos]/self.ma2)
+        elif self.law_mass_frac == "GPL": # uses GPL
+            frac = (X[pos] / x[pos]) ** (1/(self.ma1[pos]**self.n_GPL - self.ma2**self.n_GPL))
+        else:
+            print 'wrong input for mass-fractionation law, use "exp" or "GPL"'
+            frac = None
         return frac
 
-class IterRegistry(type):
+class IterRegistry(type): # used to store single values from iteration of DS inversion
     def __iter__(cls):
         return iter(cls._registry)
 
@@ -101,6 +114,7 @@ class calc_dspike(object):
     _registry = []
 
     def __init__(self):
+        # empty dictionaries to store single values for each variable and step of iteration
         self._registry.append(self)
         self.n = {}
         self.N = {}
@@ -135,14 +149,14 @@ class calc_dspike(object):
         # frac_ins - assumed initial instrumental fractionation
         # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used
         """
-        dict_log_inner = collections.OrderedDict()
-        dict_log_outer_1 = collections.OrderedDict()
+        dict_log_inner = collections.OrderedDict() # Dictionary of values of Inner Inversion Loop
+        dict_log_outer_1 = collections.OrderedDict() # Dictionary of values of Outer Inversion Loop - #Plane n-N-SP
         dict_log_outer_2 = collections.OrderedDict()
 
         n = cls_nat.x
         m = cls_ins.x
         for i in range(iter_nat):
-            # STEP 1#
+            # STEP 1# - First Outer Loop - start by calculation natural isotope ratios assuming a certain natural fraction
             N = {}
             for ratio in cls_nat.x:
                 N[ratio] = cls_nat.X(n, ratio, frac_nat)
@@ -156,7 +170,7 @@ class calc_dspike(object):
                                     + {'a_nat'+str(i):a_nat}.items() + {'b_nat'+str(i):b_nat}.items()
                                     + {'c_nat'+str(i):c_nat}.items())
 
-            #STEP 2#
+            #STEP 2# - Inner Loop - calculate mass-bias corrected Mixture - Line m-M and coordinations of intersection with plane n-N-SP
             for s in range(iter_ins):
                 M = {}
                 for ratio in cls_ins.x:
@@ -191,7 +205,7 @@ class calc_dspike(object):
 
                 dict_log_inner.update(sorted(flatdict.FlatDict({"Mr"+str(i)+'.'+str(s):Mr}).items()) + self.frac_ins.items())
 
-            #STEP 3#
+            #STEP 3# - second outer loop using mass-bias corrected M to calculate line n-N & plane m-M-SP and find intersection point to get correct N
             #Line n-N
             d_nat = cls_nat.d(n, N)
             e_nat = cls_nat.e(n, d_nat)
@@ -231,7 +245,6 @@ class calc_dspike(object):
             self.log_dict.update(dict_log_outer_1.items() + dict_log_inner.items() + dict_log_outer_2.items())
         return frac_nat
 
-
 class calc_dspike_sample(object):
     """ Contains methods for Spike Simulation and Double Spike correction
 
@@ -241,8 +254,11 @@ class calc_dspike_sample(object):
         # Sn_mass_obj - Isotope masses of the Element (Isotopes_Masses object)
         # spike_lists - Isotope used for spike calculation [[denominator],[nominator1, nominator2, nominator3]]
         # data_isotope_denom - "Denominator isotope in measured data"
+        # law_mass_frac - law used for mass-bias correction - "exp"- exponential law / "GPL" - general power law
+        # n_GPL_ins - fixed assumed n for GPL of instrumental fractionation
+        # n_GPL_nat - fixed assumed n for GPL of natural fractionation
         """
-    def __init__(self, Sn_meas_obj, data, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom):
+    def __init__(self, Sn_meas_obj, data, spike_obj, Sn_mass_obj, spike_list, data_isotope_denom, law, n_GPL_ins, n_GPL_nat):
         self.Sn_std = Sn_meas_obj
         self.Sn_data = data
         self.Sn_spike = spike_obj
@@ -250,8 +266,11 @@ class calc_dspike_sample(object):
         self.Sn_masses = Sn_mass_obj
         self.spike_list = spike_list
         self.data_denom = data_isotope_denom
-        self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list)
+        self.std = dspike_formulas(Sn_meas_obj, spike_obj, Sn_mass_obj, spike_list, law, n_GPL_nat) # class with formulas and values of Sample-Spike-Mix used for DS Inversion - outer loop
         self.log_file_rang = {}
+        self.law_mass_frac = law
+        self.n_GPL_ins = n_GPL_ins
+        self.n_GPL_nat = n_GPL_nat
 
     def mix_sim(self, fnat_sim, fins_sim, mix_ratio):
         """ Simulates a Sample-Spike-Mix with natural and instrumental fractionation
@@ -322,6 +341,7 @@ class calc_dspike_sample(object):
             mix_sim_up[value] = {}
             for isotope in mix_sim[value]:
                 mix_sim_up[value][isotope] = (dampening * (mix_sim[value][isotope] - mix_sim_mean[isotope])) + mix_sim_mean[isotope]
+
          # Spike Calculation for all measurements of an sample#
         for value in range(len(mix_sim_up)):
             mix_sim_abund = load_ratio_dict(mix_sim_up[value],self.data_denom)
@@ -354,7 +374,7 @@ class calc_dspike_sample(object):
 
 
     def dspike_corr(self, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio):
-        """ Double Spike correction for all measurements of a measured Sample-Spike-Mix (self.Sn_data)
+        """ Double Spike correction for all measurement lines of a measured Sample-Spike-Mix (self.Sn_data)
 
             # iter_nat - number of iterations used for calculation of natural fractionation
             # iter_ins - number of iterations used for calculation of instrumental fractionation
@@ -362,14 +382,14 @@ class calc_dspike_sample(object):
             # frac_ins - assumed initial instrumental fractionation
             # frac_ratio - which ratio: 'x', 'y' or 'z' for fractionation calculation should be used"""
 
-        for index, row in self.Sn_data.iterrows():
+        for index, row in self.Sn_data.iterrows(): # iterates over all measurement lines
             m_abund = load_ratio_dict(self.Sn_data.ix[index,:].to_dict(),self.data_denom) # calculates Isotope abundances for measured Sample-Spike-Mix
-            m_cls = dspike_formulas(m_abund, self.Sn_spike, self.Sn_masses, self.spike_list)
-            dspike_single = calc_dspike()
+            m_cls = dspike_formulas(m_abund, self.Sn_spike, self.Sn_masses, self.spike_list, self.law_mass_frac, self.n_GPL_ins) # class with formulas and values of Sample-Spike-Mix used for DS Inversion - inner loop
+            dspike_single = calc_dspike() #Loads in class with complete DS inversion for one sample and one measurement line
 
-            dspike_single.dspike_calc(self.std, m_cls, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio)
+            dspike_single.dspike_calc(self.std, m_cls, iter_nat, iter_ins, frac_nat, frac_ins, frac_ratio) # Performs DS inversion for one measurement line
 
-        return self.log_file() # Return a log_file (dataframe) containing all parameters used Double-Spike calculation
+        return self.log_file() # Return a log_file (dataframe) containing all parameters used for Double-Spike Inversion
 
     def log_file(self):
         # creates a dataframe from the log-file dictionary
