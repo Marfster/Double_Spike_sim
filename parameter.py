@@ -1,4 +1,4 @@
-__author__ = 'marf'
+__author__ = 'Matthias Friebel'
 
 from iso_properties import *
 
@@ -16,7 +16,7 @@ Lee_iso_denom = "120"
 #*** Import composition of Sn-Std (intern. norm) or unspiked measurement
 
 meas_dict = {"112" : 0.029823, "114" : 0.020190, "115" : 0.010361, "116" : 0.4460, "117" : 0.235318,
-             "118" : 0.742944, "119" : 0.263474, "122" : 0.142095, "124" : 0.177579} # mean of 200ppb NIST Std
+             "118" : 0.742944, "119" : 0.263474, "122" : 0.142095, "124" : 0.177579} # mean of 200ppb NIST Std - internal normalised measurements
 meas_denom = "120"
 
 # Spike - Isotope Abundances
@@ -45,20 +45,19 @@ spike_122 = {"112" : 0.0002, "114" : 0.0002, "115" : 0.0002,"116" : 0.0033, "117
 spike_124 = {"112" : 0.0003, "114" : 0.0002, "115" : 0.0003,"116" : 0.0020, "117": 0.0015,
               "118": 0.0041, "119" : 0.0021, "120" : 0.0094, "122" : 0.0104, "124" : 0.9696}
 
-spike_dict_117_122_meas = {"118": 0.0102951622334242, "119": 0.0090731830784630, "120" : 0.0338645175569080, "122" : 0.8068023572167630, "124" : 0.0114846216495240} # DS compositon 1ppm - 15.09.17
 
-meas_dict_NIST_117 = { "118" : 3.15777585757689, "119" : 1.11972979701600, "120" : 4.25050484928267, "122" : 0.60392336483548, "124" : 0.75469249128349} # mean of 1ppm NIST Std used for calib-15.09.17
+# DS compositon 1ppm - 15.09.17 relative to 117Sn
+spike_dict_117_122_meas = {"118": 0.0102951622334242, "119": 0.0090731830784630, "120" : 0.0338645175569080, "122" : 0.8068023572167630, "124" : 0.0114846216495240}
+
+# mean of 1ppm NIST Std used for calib-15.09.17 relative to 117Sn
+meas_dict_NIST_117 = { "118" : 3.15777585757689, "119" : 1.11972979701600, "120" : 4.25050484928267, "122" : 0.60392336483548, "124" : 0.754692491283485}
 meas_denom_117 = "117"
-# Data - measured mixture
-#path = "/Users/marf/Desktop/PhD Temp/Double Spike/Planning Sn 117-122/real data -intern norm/"
-#df = pd.read_csv(str(path + "2015_03_25_1367_raw_ratio_corr.csv"))
-#df_new = df.ix[:,"112":"124"]
-#df_new = df_new.drop(["117_2", "118_2", "119_2", "122_2"], axis=1)
+
 
 # Masses object used for calc
 Sn_mass_obj = load_mass_dict(Sn_masses)
 
-# Abundance object used for calc
+# Abundance object used for calc - conversion of isotope ratios into abundances
 Sn_Lee_obj = load_ratio_dict(Sn_ratios_Lee, Lee_iso_denom)
 Sn_meas_obj = load_ratio_dict(meas_dict_NIST_117, meas_denom_117)
 spike_obj = load_ratio_dict(spike_dict_117_122_meas, meas_denom_117)
