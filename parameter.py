@@ -2,12 +2,12 @@ __author__ = 'Matthias Friebel'
 
 from iso_properties import *
 
-# Masses of Isotopes
+# Masses of Isotopes - not used
 #*** Sn after IUPAC - De Laeter (2003)***#
-Sn_masses = {"112" : 111.904823, "114" : 113.902783, "115" : 114.903347, "116" : 115.901745, "117" : 116.902955,
+sn_masses = {"112" : 111.904823, "114" : 113.902783, "115" : 114.903347, "116" : 115.901745, "117" : 116.902955,
              "118" : 117.901608, "119" : 118.903311, "120" : 119.9021985, "122" : 121.9034411, "124" : 123.9052745}
 
-# True Ratios
+# True Ratios - not used
 #*** Sn after Lee et al. (1995)***#
 Sn_ratios_Lee = {"112" : 0.029812, "114" : 0.020195, "115" : 0.010366, "116" : 0.4460, "117" : 0.235313,
                  "118" : 0.742935, "119" : 0.26343, "122" : 0.142086, "124" : 0.177588}
@@ -19,8 +19,8 @@ meas_dict = {"112" : 0.029823, "114" : 0.020190, "115" : 0.010361, "116" : 0.446
              "118" : 0.742944, "119" : 0.263474, "122" : 0.142095, "124" : 0.177579} # mean of 200ppb NIST Std - internal normalised measurements
 meas_denom = "120"
 
-# Spike - Isotope Abundances
-#*** Import composition of Sn Spike ***#
+# Spike - Isotope Abundances - for simulation
+#*** Import composition of Sn Spike according ONRL ***#
 
 spike_dict_117_122 = {"112" : 0.00014579, "114" : 0.00014579, "115": 0.00014579,"116" : 0.04238541, "117": 0.50162727,
               "118": 0.00527162, "119" : 0.00487058, "120" : 0.01750020, "122" : 0.42219222, "124" : 0.00760956}
@@ -46,6 +46,9 @@ spike_124 = {"112" : 0.0003, "114" : 0.0002, "115" : 0.0003,"116" : 0.0020, "117
               "118": 0.0041, "119" : 0.0021, "120" : 0.0094, "122" : 0.0104, "124" : 0.9696}
 
 
+### Used for DS inversion ###
+
+
 # DS compositon 1ppm - 15.09.17 relative to 117Sn
 spike_dict_117_122_meas = {"118": 0.0102951622334242, "119": 0.0090731830784630, "120" : 0.0338645175569080, "122" : 0.8068023572167630, "124" : 0.0114846216495240}
 
@@ -55,10 +58,10 @@ meas_denom_117 = "117"
 
 
 # Masses object used for calc
-Sn_mass_obj = load_mass_dict(Sn_masses)
+#Sn_mass_obj = load_mass_dict(Sn_masses)
 
 # Abundance object used for calc - conversion of isotope ratios into abundances
-Sn_Lee_obj = load_ratio_dict(Sn_ratios_Lee, Lee_iso_denom)
+#Sn_Lee_obj = load_ratio_dict(Sn_ratios_Lee, Lee_iso_denom)
 Sn_meas_obj = load_ratio_dict(meas_dict_NIST_117, meas_denom_117)
 spike_obj = load_ratio_dict(spike_dict_117_122_meas, meas_denom_117)
 
