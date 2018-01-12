@@ -656,6 +656,50 @@ class evaluation(object):
         self.data_dict = df_bgd_corr
         return self.data_dict
 
+    def data_bgd_corr_2(self, df_bgd_1, df_bgd_2):
+        if df_bgd_2:
+            bgd_signals = {}
+            for cycle in df_bgd_1:
+                bgd_signals[cycle] = {}
+                for cup in df_bgd_1[cycle]:
+                    if (cup in df_bgd_2[cycle]):
+                        avg_cup_cycle_bgd_1 = []
+                        avg_cup_cycle_bgd_2 = []
+                        for meas_point in df_bgd_1[cycle][cup]:
+                            if (meas_point in df_bgd_2[cycle][cup]):
+                                avg_cup_cycle_bgd_1.append(df_bgd_1[cycle][cup][meas_point])
+                                avg_cup_cycle_bgd_2.append(df_bgd_2[cycle][cup][meas_point])
+
+                        bgd_signals[cycle][cup] = np.nanmean([np.nanmean(avg_cup_cycle_bgd_1), np.nanmean(avg_cup_cycle_bgd_2)])
+
+        else:
+            bgd_signals = {}
+            for cycle in df_bgd_1:
+                bgd_signals[cycle] = {}
+                for cup in df_bgd_1[cycle]:
+                     avg_cup_cycle_bgd_1 = []
+                     for meas_point in df_bgd_1[cycle][cup]:
+                        avg_cup_cycle_bgd_1.append(df_bgd_1[cycle][cup][meas_point])
+
+                     bgd_signals[cycle][cup] = np.nanmean(avg_cup_cycle_bgd_1)
+
+        df_bgd_corr = {}
+        for cycle in self.data_dict:
+            df_bgd_corr[cycle] = {}
+            for cup in self.data_dict[cycle]:
+                if (cup in bgd_signals[cycle]):
+                    names = ['id', 'data']
+                    formats = ['float', 'float']
+                    dtype = dict(names=names, formats=formats)
+                    cup_cycle = np.array(self.data_dict[cycle][cup].items(), dtype=dtype)
+                    avg_bgd = bgd_signals[cycle][cup]
+                    x2 = np.full(len(self.data_dict[cycle][cup]), (avg_bgd))
+                    #cup_cycle = np.array(cup_cycle)
+                    cup_cycle["data"] = cup_cycle["data"] - x2
+                    df_bgd_corr[cycle][cup] = Counter(dict(enumerate(cup_cycle["data"], 1)))
+        self.data_dict = df_bgd_corr
+        return self.data_dict
+
     #returns raw signals
     def raw_signals_all(self):
         data_sample = {}
